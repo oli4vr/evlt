@@ -30,7 +30,7 @@ evlt get /myvault/myfile.jpeg >myfile.jpeg
 Note that you use up to 3 "keys" in the form of /vaultname/keystring1/keystring2/keystring3, but that is optional.
 The missing keys will be filled in by a generated hash based string.
 
-You can also use extra '/' subcategories (or subdirs if you want to call it that). These will work as extra keys but will just add to the key3 string.
+You can also use more '/' subcategories (or subdirs if you want to call it that). These will work as extra keys but will just add to the key3 string. So /v/a/b/c/d/e  --> vault=v key1=a key2=b key3=c/d/e
 
 Technically you could consider it as a sort-of directory structure, but you have no way to list or it's content without knowing the full "path".
 
@@ -104,7 +104,7 @@ make install
 ```
 Currently "make install" copies the executable to ~/bin. Make sure this is in your PATH.
 
-## Usage
+## Syntax
 
 The general syntax for using evlt is as follows:
 
@@ -117,7 +117,14 @@ evlt [action] /vaultname/key1/key2/key3 [options]
 - `[options]` can include:
   - `-n NR_SEGMENTS` to specify the number of parallel vault file segments (default is 8).
   - `-v` for verbose mode.
-  - `-h` to hide output for sensitive data.
+  - `-i` to output an invisible copy/paste string on the console.
   - `-c` to run the retrieved content as a script or command.
 
 Always ensure that the vault name and keys are kept secure and are not exposed to unauthorized users.
+
+### How it works
+Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security.
+
+All vault data resides within the `~/.evlt` directory. The names of the vault segment files are derived from hashed strings, which serves to obscure their contents and purpose.
+
+To retrieve data from the vault, the entire vault's contents must be decrypted. The hashes of the decrypted blocks are then compared to ensure they match the requested data blob. Only blocks with matching hashes are considered part of the retrieved data set.
