@@ -15,6 +15,25 @@ This application is currently still in an experimental state. Use it at your own
 
 ## Use Cases
 
+### Storing a binary file
+
+The basic syntax to store a file :
+```bash
+evlt put /myvault/myfile.jpeg <myfile.jpeg
+```
+
+And to recover the file you can simply run :
+```bash
+evlt get /myvault/myfile.jpeg >myfile.jpeg
+```
+
+Note that you use up to 3 "keys" in the form of /vaultname/keystring1/keystring2/keystring3, but that is optional.
+The missing keys will be filled in by a generated hash based string.
+
+You can also use extra '/' subcategories (or subdirs if you want to call it that). These will work as extra keys but will just add to the key3 string.
+
+Technically you could consider it as a sort-of directory structure, but you have no way to list or it's content without knowing the full "path".
+
 ### Storing a Password
 
 To store a sensitive password in the vault:
@@ -35,7 +54,7 @@ evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -i
 
 The -i option chooses "invisible output mode". This could be handy for double-click copy/paste fields in interactive login scripts.
 
-### Storing a Binary File
+### Storing a File
 
 To store the content of a file, such as an SSH private key:
 
@@ -43,9 +62,9 @@ To store the content of a file, such as an SSH private key:
 evlt put /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 < id_rsa
 ```
 
-This command reads the binary content of the file "id_rsa" and stores it in the vault.
+This command reads the content of the file "id_rsa" and stores it in the vault.
 
-### Retrieving a Binary File
+### Retrieving a File
 
 To retrieve the stored binary file:
 
@@ -53,7 +72,7 @@ To retrieve the stored binary file:
 evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 > id_rsa_recovered
 ```
 
-This command writes the retrieved binary content to a new file "id_rsa_recovered".
+This command writes the retrieved content to a new file "id_rsa_recovered".
 
 ### Storing a script
 
