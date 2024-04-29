@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 SEG=32
-CNT=4
+CNT=64
 BS=4M
 make
 rm -rf ~/.evlt 
