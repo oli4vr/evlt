@@ -111,7 +111,6 @@ void* evlt_put_thread(void *ethr) {
 
  SHA512(eb->data,MAX_DATA_SIZE,eb->sha512);
  memcpy(buffer,(unsigned char *)eb,BLOCK_SIZE);
- //fprintf(stderr,"DEBUG: Put Segment %d length %d\n",n,eb->length);
  encrypt_data(&vc->ct3,buffer,BLOCK_SIZE);
  encrypt_data(&vc->ct2,buffer,BLOCK_SIZE);
  encrypt_data(&vc->ct1,buffer,BLOCK_SIZE);
@@ -143,11 +142,9 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  if (len<0) return -2;
  if (feof(fp)) {
   flags|=FLAG_STOP;
-  //fprintf(stderr,"## STOP MARKER ##\n");
  }
  llen=len%MAX_DATA_SIZE;
  i.segments_read=(len/MAX_DATA_SIZE)+(llen!=0);
-// fprintf(stderr,"%d %d %d %d\n",len,llen, i.segments_read,max);
 
 
  for(n=0;n<v->segments;n++) {
@@ -187,7 +184,6 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
    while (pthread_join(i.thr[n].thr,NULL)!=0) {};
   }
  }
-// fprintf(stderr,"DEBUG : iteration length = %d\n",len);
  return len;
 }
 
@@ -201,18 +197,22 @@ void* evlt_get_thread(void *ethr) {
  int rc;
  
  if (t->rfp==NULL) {t->nrread=0;return NULL;}
+ if (feof(t->rfp)) {t->nrread=0;return NULL;}
  rc=fread(buffer,BLOCK_SIZE,1,t->rfp);
  t->nrread=rc;
  t->datalength=0;
 
- if (t->nrread>0) {
+ if (t->nrread>0 && vc->stop==0) {
   memcpy((unsigned char*)eb,buffer,BLOCK_SIZE);
   decrypt_data(&vc->ct1,(unsigned char*)eb,BLOCK_SIZE);
   decrypt_data(&vc->ct2,(unsigned char*)eb,BLOCK_SIZE);
   decrypt_data(&vc->ct3,(unsigned char*)eb,BLOCK_SIZE);
   rc=evlt_sha(eb);
   if (rc) {
-//   fprintf(stderr,"DEBUG: match length %d\n",eb->length);
+   //SHA512 Match
+   if (eb->flags & FLAG_STOP) {
+    vc->stop=1;
+   }
    if (t->outseg!=NULL) {
     memcpy(t->outseg,eb->data,MAX_DATA_SIZE);
     t->datalength=eb->length;
@@ -270,12 +270,10 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  if (i.datalength<1) {return 1;}
 
  if (v->wfp[0]==NULL && fp!=NULL) {
-//  fprintf(stderr,"%d %d\n",nrread,i.datalength);
   rc=fwrite(i.data,1,i.datalength,fp);
  }
 
  if (i.eblock[0].flags & FLAG_STOP) {
-  //fprintf(stderr,"## STOP MARKER ##\n");
   return 0;
  }
 
@@ -304,6 +302,7 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
  init_encrypt(&vc.ct1,key1,2);
  init_encrypt(&vc.ct2,key2,2);
  init_encrypt(&vc.ct3,key3,2);
+ vc.stop=0;
 
  //fopen all segment files for binary read
  for(n=0;n<v->segments;n++) {
@@ -325,8 +324,6 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
  while (rcw>0 || rcr>0) {
   if (rcw>0 && iomode>0) {rcw=evlt_iter_put(v,in,&vc);}
   if (rcr>0) {rcr=evlt_iter_get(v,out,&vc);}
-//  if (rcr==1) {fprintf(stderr,"Match 0\n");}
-//  else if (rcr==2) {fprintf(stderr,"Match 1\n");}
  }
 
  //fclose all segment files

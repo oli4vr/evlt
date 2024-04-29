@@ -34,6 +34,7 @@ typedef struct _evlt_vector {
  crypttale ct1;
  crypttale ct2;
  crypttale ct3;
+ unsigned char stop;
 } evlt_vector;
 
 /* Structure for managing threads in the encryption/decryption process */
