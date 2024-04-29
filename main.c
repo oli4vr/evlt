@@ -116,7 +116,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
 //Print standard help text to stderr
 int print_help(unsigned char *cmd) {
  if (cmd==NULL) {return -1;}
- fprintf(stderr,"evlt     -> Entropy Vault\n",cmd);
+ fprintf(stderr,"evlt     -> Entropy Vault\n");
  fprintf(stderr,"            by Olivier Van Rompuy\n\n");
  fprintf(stderr," Syntax  -> evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n");
  fprintf(stderr,"         -> evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n\n");
