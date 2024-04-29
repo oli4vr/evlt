@@ -7,13 +7,14 @@
 #define RW_SIZE (MAX_DATA_SIZE * MAX_SEGMENTS)
 #define THREADS_MINSEG_W 3
 #define THREADS_MINSEG_R 2
+#define FLAG_STOP 0x8000
 
 /* Structure for holding a block of data with its SHA-512 hash and metadata */
 typedef struct _evlt_block {
  unsigned char data[MAX_DATA_SIZE];
  unsigned char sha512[64];
  uint16_t length;
- uint16_t dpos;
+ uint16_t flags;
 } evlt_block;
 
 typedef struct _evlt_iter evlt_iter;

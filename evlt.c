@@ -128,6 +128,7 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  unsigned char n=0;
  unsigned char *cp=i.data;
  unsigned char buffer[BLOCK_SIZE];
+ uint16_t flags=0;
  int len,llen,lseg,blen,rc;
  int max=MAX_DATA_SIZE*v->segments;
  pthread_t *tp;
@@ -140,6 +141,10 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  len=fread(i.data,1,max,fp);
  if (len==0) return 0;
  if (len<0) return -2;
+ if (feof(fp)) {
+  flags|=FLAG_STOP;
+  //fprintf(stderr,"## STOP MARKER ##\n");
+ }
  llen=len%MAX_DATA_SIZE;
  i.segments_read=(len/MAX_DATA_SIZE)+(llen!=0);
 // fprintf(stderr,"%d %d %d %d\n",len,llen, i.segments_read,max);
@@ -155,7 +160,7 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
   i.block_segment[n]=cp;
 
   eb->length=blen;
-  eb->dpos=0;
+  eb->flags=flags;
   if (blen>0) {
    memcpy(eb->data,cp,eb->length);
   }
@@ -230,6 +235,7 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  unsigned char *cp=i.data;
  unsigned char buffer[RW_SIZE];
  unsigned char sha512[64];
+ uint16_t flags;
  pthread_t *tp;
  int nrread;
 
@@ -266,6 +272,11 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  if (v->wfp[0]==NULL && fp!=NULL) {
 //  fprintf(stderr,"%d %d\n",nrread,i.datalength);
   rc=fwrite(i.data,1,i.datalength,fp);
+ }
+
+ if (i.eblock[0].flags & FLAG_STOP) {
+  //fprintf(stderr,"## STOP MARKER ##\n");
+  return 0;
  }
 
  return 2;
