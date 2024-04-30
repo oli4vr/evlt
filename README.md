@@ -106,21 +106,25 @@ Currently "make install" copies the executable to ~/bin. Make sure this is in yo
 
 ## Syntax
 
-The general syntax for using evlt is as follows:
+<pre>
+evlt           Entropy Vault
+               by Olivier Van Rompuy
 
-```bash
-evlt [action] /vaultname/key1/key2/key3 [options]
-```
+ Syntax        evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
+               evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
 
-- `[action]` is either `put` to store data or `get` to retrieve data.
-- `/vaultname/key1/key2/key3` specifies the vault name and the three keys.
-- `[options]` can include:
-  - `-n NR_SEGMENTS` to specify the number of parallel vault file segments (default is 8).
-  - `-v` for verbose mode.
-  - `-i` to output an invisible copy/paste string on the console.
-  - `-c` to run the retrieved content as a script or command.
-
-Always ensure that the vault name and keys are kept secure and are not exposed to unauthorized users.
+ put/get       Store/Recall data. Uses stdin/stdout by default
+ -v            Verbose mode
+ -n NR         Use NR number of parallel vault file segments
+               Default = 8
+ -i            Invisible copy/pasteable output between >>> and <<<
+               Good for passwords and keys.
+ -c            Run content as a script or command
+ -d path       Use an alternate dir path for the vault files
+ -f file       Use file for input or output instead of stdin or stdout
+ -p [passkey]  Use an aditional passkey. Can be optionally provided on the cli.
+               If not provided you need to enter it manually via a password prompt.
+</pre>
 
 ### How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When a EOF is hit on the input file stream a "stop" flag is set on the last blocks of each segment.
