@@ -7,16 +7,23 @@
 #include <time.h>
 #include <inttypes.h>
 #include <pwd.h>
+#include <termios.h>
+#include <unistd.h>
 #include "sha512.h"
 #include "encrypt.h"
 #include "hexenc.h"
 #include "evlt.h"
-#include "main.h"
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
 unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
+
+unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf,size_t size) {
+ strncpy(buf,getpass(prompt),80);
+ buf[79]=0;
+ return buf;
+}
 
 //Process option parameters
 int proc_opt(evlt_act *a,int argc,char ** argv) {
@@ -24,9 +31,11 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  char *opt;
  char optc;
  unsigned char tmp[1024]={0};
+ unsigned char passchk[512]={0};
  unsigned char *cp,*sp;
  unsigned char kp=0;
  unsigned char *sp0=NULL,*sp1=NULL,*sp2=NULL,*sp3=NULL;
+ unsigned char manpass=0;
  argc--;argv++;
 
  if (argc<2) {//Bad nr arguments 
@@ -42,6 +51,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   a->action=1;
   argc--;argv++;
  }
+
 
  a->segments=8;
  a->verbose=0;
@@ -99,7 +109,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
        if (a->segments<1 || a->segments>32) {a->segments=8;}
       }
      break;;
-    case 'p':
+    case 'd':
       argc--;argv++;
       if (argc<1) {return -6;}
       else {
@@ -111,6 +121,28 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       if (argc<1) {return -7;}
       else {
         opt_fname=argv[0];
+      }
+     break;;
+    case 'p':
+      argc--;argv++;
+      if (argc<1) {manpass=1;}
+      else {
+       if (argv[0][0]=='-') {manpass=1;argc++;argv--;}
+      }
+      if (manpass) {
+       if (a->action==0) {
+        evlt_getpass("Passkey : ",a->passkey,512);
+       } else {
+        evlt_getpass("Passkey 1st : ",a->passkey,512);
+        evlt_getpass("Passkey 2nd : ",passchk,512);
+        if (strncmp(a->passkey,passchk,512)!=0) {
+         fprintf(stderr,"Error: Password entries do not match!\n");
+         return -4;
+        }
+       }
+      } else {
+       strncpy(a->passkey,argv[0],512);
+       a->passkey[511]=0;
       }
      break;;
     case 'v':
@@ -132,19 +164,21 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
 //Print standard help text to stderr
 int print_help(unsigned char *cmd) {
  if (cmd==NULL) {return -1;}
- fprintf(stderr,"evlt     -> Entropy Vault\n");
- fprintf(stderr,"            by Olivier Van Rompuy\n\n");
- fprintf(stderr," Syntax  -> evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n");
- fprintf(stderr,"         -> evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n\n");
- fprintf(stderr," put/get -> Store/Recall data. Uses stdin/stdout by default\n\n");
- fprintf(stderr," -v      -> Verbose mode\n\n");
- fprintf(stderr," -n NR   -> Use NR number of parallel vault file segments\n");
- fprintf(stderr,"            Default = 8\n\n");
- fprintf(stderr," -i      -> Invisible copy/pasteable output between >>> and <<<\n");
- fprintf(stderr,"            Good for passwords and keys.\n\n");
- fprintf(stderr," -c      -> Run content as a script or command\n\n");
- fprintf(stderr," -p path -> Use an alternate path for the vault files\n\n");
- fprintf(stderr," -f file -> Use file for input or output instead of stdin or stdout\n\n");
+ fprintf(stderr,"evlt           Entropy Vault\n");
+ fprintf(stderr,"               by Olivier Van Rompuy\n\n");
+ fprintf(stderr," Syntax        evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n");
+ fprintf(stderr,"               evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n\n");
+ fprintf(stderr," put/get       Store/Recall data. Uses stdin/stdout by default\n");
+ fprintf(stderr," -v            Verbose mode\n");
+ fprintf(stderr," -n NR         Use NR number of parallel vault file segments\n");
+ fprintf(stderr,"               Default = 8\n");
+ fprintf(stderr," -i            Invisible copy/pasteable output between >>> and <<<\n");
+ fprintf(stderr,"               Good for passwords and keys.\n");
+ fprintf(stderr," -c            Run content as a script or command\n");
+ fprintf(stderr," -d path       Use an alternate dir path for the vault files\n");
+ fprintf(stderr," -f file       Use file for input or output instead of stdin or stdout\n");
+ fprintf(stderr," -p [passkey]  Use an aditional passkey. Can be optionally provided on the cli.\n");
+ fprintf(stderr,"               If not provided you need to enter it manually via a password prompt.\n\n");
  return 0;
 }
 
@@ -153,16 +187,20 @@ int main(int argc,char ** argv) {
  evlt_vault v;
  evlt_act a;
  int optrc;
- optrc=proc_opt(&a,argc,argv);
  unsigned char fname[1024]={0};
  FILE *fpo=stdout;
  FILE *fpi=stdin;
+
+ memset(a.passkey,0,512);
+ a.passkey[0]=0;
+
+ optrc=proc_opt(&a,argc,argv);
 
  setvbuf(stdin, NULL, _IONBF, 0);
  setvbuf(stdout, NULL, _IONBF, 0);
 
  if (optrc<0) {
-  print_help(argv[0]);
+  if (optrc!=-4) print_help(argv[0]);
   return -1;
  }
 
@@ -210,11 +248,11 @@ int main(int argc,char ** argv) {
  switch (a.action) {
   case 0:
     if (hiddenout==1) fprintf(stdout,"Copy/Paste between >>>%c[8m",27);
-    evlt_io(&v,fpo,0,a.key1,a.key2,a.key3);
+    evlt_io(&v,fpo,0,a.key1,a.key2,a.key3,a.passkey);
     if (hiddenout==1) fprintf(stdout,"%c[m<<<\n\n",27);
    break;;
   case 1:
-    evlt_io(&v,fpi,1,a.key1,a.key2,a.key3);
+    evlt_io(&v,fpi,1,a.key1,a.key2,a.key3,a.passkey);
    break;;
  }
 

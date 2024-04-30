@@ -116,6 +116,8 @@ void* evlt_put_thread(void *ethr) {
  encrypt_data(&vc->ct3,buffer,BLOCK_SIZE);
  encrypt_data(&vc->ct2,buffer,BLOCK_SIZE);
  encrypt_data(&vc->ct1,buffer,BLOCK_SIZE);
+ if (vc->passkey.key[0]!=0) 
+  encrypt_data(&vc->passkey,buffer,BLOCK_SIZE);
 
  rc=fwrite(buffer,BLOCK_SIZE,1,t->wfp);
  if (rc!=1) {fprintf(stderr,"Error: Write failure to temp segment file.\n");}
@@ -206,6 +208,8 @@ void* evlt_get_thread(void *ethr) {
 
  if (t->nrread>0 && vc->stop==0) {
   memcpy((unsigned char*)eb,buffer,BLOCK_SIZE);
+  if (vc->passkey.key[0]!=0)
+   decrypt_data(&vc->passkey,(unsigned char*)eb,BLOCK_SIZE);
   decrypt_data(&vc->ct1,(unsigned char*)eb,BLOCK_SIZE);
   decrypt_data(&vc->ct2,(unsigned char*)eb,BLOCK_SIZE);
   decrypt_data(&vc->ct3,(unsigned char*)eb,BLOCK_SIZE);
@@ -282,7 +286,7 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  return 2;
 }
 
-int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3) {
+int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass) {
  unsigned char buffer[BUFFER_SIZE];
  unsigned char *cp;
  int len=0,clen,lput=MAX_SEGMENTS;
@@ -301,9 +305,11 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
   in=fp;out=NULL;
  }
 
- init_encrypt(&vc.ct1,key1,2);
- init_encrypt(&vc.ct2,key2,2);
- init_encrypt(&vc.ct3,key3,2);
+ init_encrypt(&vc.ct1,key1,1);
+ init_encrypt(&vc.ct2,key2,1);
+ init_encrypt(&vc.ct3,key3,1);
+ if (pass[0]!=0) {init_encrypt(&vc.passkey,pass,3);}
+ else {vc.passkey.key[0]=0;}
  vc.stop=0;
 
  //fopen all segment files for binary read

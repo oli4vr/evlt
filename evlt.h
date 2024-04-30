@@ -1,3 +1,4 @@
+#include <bits/pthreadtypes.h>
 #define BLOCK_SIZE 65536
 //#define BLOCK_DATA (BLOCK_SIZE - 2)
 #define MAX_DATA_SIZE (BLOCK_SIZE - 68)   //BLOCK_SIZE - 16bit length - 16bit dpos - sha512
@@ -35,6 +36,7 @@ typedef struct _evlt_vector {
  crypttale ct1;
  crypttale ct2;
  crypttale ct3;
+ crypttale passkey;
  unsigned char stop;
 } evlt_vector;
 
@@ -69,6 +71,7 @@ typedef struct _evlt_act {
  unsigned char key1[512];
  unsigned char key2[512];
  unsigned char key3[512];
+ unsigned char passkey[512];
  unsigned char segments;
  unsigned char verbose;
 } evlt_act;
@@ -77,5 +80,5 @@ typedef struct _evlt_act {
 int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments);
 
 /* Handles input/output operations for a vault */
-int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3);
+int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass);
 
