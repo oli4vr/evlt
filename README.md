@@ -123,8 +123,8 @@ evlt [action] /vaultname/key1/key2/key3 [options]
 Always ensure that the vault name and keys are kept secure and are not exposed to unauthorized users.
 
 ### How it works
-Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security.
+Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When a EOF is hit on the input file stream a "stop" flag is set on the last blocks of each segment.
 
 All vault data resides within the `~/.evlt` directory. The names of the vault segment files are derived from hashed strings, which serves to obscure their contents and purpose.
 
-To retrieve data from the vault, the entire vault's contents must be decrypted. The hashes of the decrypted blocks are then compared to ensure they match the requested data blob. Only blocks with matching hashes are considered part of the retrieved data set.
+To retrieve data from the vault, the segment file blocks must be processed from the beginning until the stop marker. Each block is decrypted, the sha512 is recalculated and compared. If the hashes match then the data is considered to be part of the requested data blob and sent to the output FILE stream.

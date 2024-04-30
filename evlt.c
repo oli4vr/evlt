@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include <pwd.h>
 #include <sys/stat.h>
+#include <linux/stat.h>
 #include <unistd.h>
 #include <sched.h>
 #include "sha512.h"
@@ -57,7 +58,6 @@ int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments) {
  unsigned char exploded[1024];
  unsigned char shaout[256];
  unsigned char hexout[256];
- unsigned char evlt_path[256]={0};
  unsigned char *cp;
  FILE *fp;
  size_t sz;
@@ -68,8 +68,10 @@ int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments) {
  v->segments=segments;
 
  //Hidden subdir in user home
- snprintf(evlt_path,256,"%s/.evlt", getpwuid(getuid())->pw_dir);
- mkdir(evlt_path,S_IRWXU);
+ if (v->path[0]==0) {
+  snprintf(v->path,256,"%s/.evlt", getpwuid(getuid())->pw_dir);
+ }
+ mkdir(v->path,S_IRWXU);
 
  for(n=0;n<segments;n++) {
   //Generate vault segment filenames
@@ -78,14 +80,14 @@ int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments) {
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
-  snprintf(v->segfile[n],1024,"%s/%s.evlt",evlt_path,hexout);
+  snprintf(v->segfile[n],1024,"%s/%s.evlt",v->path,hexout);
   //Generate write segment filenames
   sz=64;
   snprintf(subname[n],1024,"$$Wr1T3temp$$__%s__%04lx__%04lx",v->name,segments,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
-  snprintf(v->wrtfile[n],1024,"%s/%s.evlt",evlt_path,hexout);
+  snprintf(v->wrtfile[n],1024,"%s/%s.evlt",v->path,hexout);
   //Touch the vault segment files
   fp=fopen(v->segfile[n],"ab");
   if (fp!=NULL) {fclose(fp);}
@@ -339,5 +341,6 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
     rename(v->wrtfile[n],v->segfile[n]);
    }
   }
+  sync();
  }
 }

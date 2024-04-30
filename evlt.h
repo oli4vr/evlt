@@ -22,6 +22,7 @@ typedef struct _evlt_iter evlt_iter;
 /* Structure for managing vault files and their segments */
 typedef struct _evlt_vault {
  unsigned char name[32];
+ unsigned char path[1024];
  unsigned char segments;
  unsigned char segfile[MAX_SEGMENTS][1024];
  unsigned char wrtfile[MAX_SEGMENTS][1024];

@@ -15,6 +15,8 @@
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
+unsigned char *evlt_path=NULL;
+unsigned char *opt_fname=NULL;
 
 //Process option parameters
 int proc_opt(evlt_act *a,int argc,char ** argv) {
@@ -90,13 +92,27 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
    optc=opt[1];
    switch (optc) {
     case 'n':
-     argc--;argv++;
-     if (argc<1) {return -5;}
-     else {
-      a->segments=atoi(argv[0]);
-      if (a->segments<1 || a->segments>32) {a->segments=8;}
-     }
-    break;;
+      argc--;argv++;
+      if (argc<1) {return -5;}
+      else {
+       a->segments=atoi(argv[0]);
+       if (a->segments<1 || a->segments>32) {a->segments=8;}
+      }
+     break;;
+    case 'p':
+      argc--;argv++;
+      if (argc<1) {return -6;}
+      else {
+        evlt_path=argv[0];
+      }
+     break;;
+    case 'f':
+      argc--;argv++;
+      if (argc<1) {return -7;}
+      else {
+        opt_fname=argv[0];
+      }
+     break;;
     case 'v':
       a->verbose=1;
      break;;
@@ -127,6 +143,8 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," -i      -> Invisible copy/pasteable output between >>> and <<<\n");
  fprintf(stderr,"            Good for passwords and keys.\n\n");
  fprintf(stderr," -c      -> Run content as a script or command\n\n");
+ fprintf(stderr," -p path -> Use an alternate path for the vault files\n\n");
+ fprintf(stderr," -f file -> Use file for input or output instead of stdin or stdout\n\n");
  return 0;
 }
 
@@ -140,6 +158,9 @@ int main(int argc,char ** argv) {
  FILE *fpo=stdout;
  FILE *fpi=stdin;
 
+ setvbuf(stdin, NULL, _IONBF, 0);
+ setvbuf(stdout, NULL, _IONBF, 0);
+
  if (optrc<0) {
   print_help(argv[0]);
   return -1;
@@ -147,15 +168,44 @@ int main(int argc,char ** argv) {
 
  srand(time(NULL)); 
 
- if (runascmd) {
+ if (runascmd && a.action==0) {
   sprintf(fname,"/tmp/.%08lx%08lx.tmp",random(),random());
-  fpo=fopen(fname,"wb");
-  chmod(fname,S_IRWXU);
+ }
+
+ if (opt_fname!=NULL) {
+  strncpy(fname,opt_fname,1024);
+ }
+
+ if (fname[0]!=0) {
+  switch (a.action) {
+    case 0:
+      fpo=NULL;
+      fpo=fopen(fname,"wb");
+      if (fpo==NULL) {
+        fprintf(stderr,"Error: Failed to open file %s for write\n",fname);
+        return -2;
+      }
+     break;;
+    case 1:
+      fpi=NULL;
+      fpi=fopen(fname,"rb");
+      if (fpi==NULL) {
+        fprintf(stderr,"Error: Failed to open file %s for read\n",fname);
+        return -3;
+      }
+     break;;
+  }
  }
 
  if (a.verbose) {
   fprintf(stderr,"Action: %d\nVault: %s\nSegments: %d\nKey1: %s\nKey2: %s\nKey3: %s\n",a.action,a.vname,a.segments,a.key1,a.key2,a.key3);
  }
+
+ v.path[0]=0;
+ if (evlt_path!=NULL) {
+  strncpy(v.path,evlt_path,1024);
+ }
+
  evlt_init(&v,a.vname,a.segments);
  switch (a.action) {
   case 0:
@@ -168,8 +218,19 @@ int main(int argc,char ** argv) {
    break;;
  }
 
- if (runascmd) {
-  fclose(fpo);
+ if (fname[0]!=0) {
+  switch (a.action) {
+    case 0:
+      fclose(fpo);
+     break;;
+    case 1:
+      fclose(fpi);
+     break;;
+  }
+ }
+
+ if (runascmd && a.action==0) {
+  chmod(fname,S_IRWXU);
   system(fname);
   remove(fname);
  }
