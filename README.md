@@ -61,8 +61,6 @@ To store the content of a file, such as an SSH private key:
 evlt put /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 < id_rsa
 ```
 
-This command reads the content of the file "id_rsa" and stores it in the vault.
-
 ### Retrieving a secret key
 
 To retrieve the stored key file and output as invisible copy/paste content on the terminal :
@@ -70,8 +68,6 @@ To retrieve the stored key file and output as invisible copy/paste content on th
 ```bash
 evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 -i
 ```
-
-This command writes the retrieved content to a new file "id_rsa_recovered".
 
 ### Storing a script
 
