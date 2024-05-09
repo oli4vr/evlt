@@ -4,7 +4,7 @@ Entropy Vault (evlt) is a command-line application designed for securely storing
 
 This tool is primarily intended for system administrators who require secure data storage and management on critical systems, often accessed via the console or with root privileges.
 
-This application is currently still in an experimental state. Use it at your own risk.
+This application is currently still in an experimental state. Consider it as such. Do not use it to store production critical data.
 
 ## Features
 
