@@ -63,20 +63,20 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
 
  strncpy(tmp,argv[0],1024);
  tmp[1023]=0;
- l=strnlen(tmp,1024);
+ l=strnlen(tmp,1024)+1;
  cp=tmp;
  if (*cp=='/') {cp++;}
  sp=cp;
- strncpy(a->key1,".default",512);
- strncpy(a->key2,".default",512);
- strncpy(a->key3,".default",512);
+ a->key1[0]=0;
+ a->key1[1]=0;
+ a->key1[2]=0;
  for(n=0;n<l && kp<4;n++) {
   if (*cp=='/' || *cp==0) {
    switch (kp) {
     case 0:
       *cp=0;
       strncpy(a->vname,sp,32);
-      a->key3[31]=0;
+      a->vname[31]=0;
      break;;
     case 1:
       *cp=0;
@@ -98,6 +98,9 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   }
   cp++;
  }
+ if (a->key1[0]==0) evlt_sha_hex(a->vname,a->key1,strnlen(a->vname,32));
+ if (a->key2[0]==0) evlt_sha_hex(a->key1,a->key2,strnlen(a->key1,32));
+ if (a->key3[0]==0) evlt_sha_hex(a->key2,a->key3,strnlen(a->key2,32));
 
  argc--;argv++;
 
