@@ -82,3 +82,9 @@ int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments);
 /* Handles input/output operations for a vault */
 int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass);
 
+// Data block to FILE* stream
+FILE* data2stream(unsigned char* data, size_t size);
+
+size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s);
+size_t evlt_get_masterkey(unsigned char *path,unsigned char *m);
+size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s);

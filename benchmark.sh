@@ -11,6 +11,10 @@ fi
 make
 rm -rf $VPATH/*.evlt
 echo
+echo "####Init"
+echo
+echo init | ./evlt put init 
+echo
 echo "####Performance"
 echo
 echo "####First data blob write $CNT * $BS"

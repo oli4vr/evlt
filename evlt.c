@@ -15,6 +15,40 @@
 #include "hexenc.h"
 #include "evlt.h"
 
+unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
+
+FILE* data2stream(unsigned char* data, size_t size) {
+ int pipefd[2];
+ if (pipe(pipefd) == -1) {
+  perror("pipe");
+  return NULL;
+ }
+
+ ssize_t written = write(pipefd[1], data, size);
+ if (written == -1) {
+  perror("write");
+  close(pipefd[0]);
+  close(pipefd[1]);
+  return NULL;
+ } else if (written != size) {
+  fprintf(stderr, "Incomplete write to pipe\n");
+  close(pipefd[0]);
+  close(pipefd[1]);
+  return NULL;
+ }
+
+ close(pipefd[1]); // Close the write-end of the pipe, we're done writing
+
+ FILE* stream = fdopen(pipefd[0], "r");
+ if (stream == NULL) {
+  perror("fdopen");
+  close(pipefd[0]);
+  return NULL;
+ }
+
+ return stream;
+}
+
 //Wipe a buffer by replacing it's content with random bytes
 void random_wipe(unsigned char *buff,size_t size)
 {
@@ -298,7 +332,7 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
  evlt_vector vc;
  FILE *in, *out;
 
- if (fp==NULL) {return -1;}
+ if (fp==NULL && iomode==0) {return -1;}
  if (iomode==0) {
   in=NULL;out=fp;
  } else {
@@ -349,4 +383,78 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
   }
   sync();
  }
+}
+
+size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s) {
+ unsigned char sha512[64];
+ size_t sz=64;
+ SHA512(src,s,sha512);
+ data2hex(sha512,tgt,&sz);
+ tgt[128]=0;
+ return sz;
+}
+
+size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
+ unsigned char hex512[129];
+ unsigned char buffer[BLOCK_SIZE];
+ unsigned char hostn[256];
+ unsigned char filen[1024];
+ FILE *fp;
+ uint16_t dpos;
+ size_t sz;
+ crypttale ct;
+
+ //Setup
+ random_wipe(buffer,BLOCK_SIZE);
+ init_encrypt(&ct,master_obscure,255);
+ gethostname(hostn,256);
+ sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
+ sprintf(filen,"%s/%s.evlt",path,hex512);
+
+ //Read
+ fp=fopen(filen,"rb");
+ if (fp==NULL) {return 0;}
+ sz=fread(buffer,1,BLOCK_SIZE,fp);
+ fclose(fp);
+ if (sz<BLOCK_SIZE) {return 0;}
+
+ //Process
+ decrypt_data(&ct,buffer,BLOCK_SIZE);
+ dpos=*(uint16_t *)buffer;
+ memcpy(m,buffer+dpos,129);
+ if (m[128]!=0) {return 0;}
+ return 129;
+}
+
+size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
+ unsigned char hex512[129];
+ unsigned char buffer[BLOCK_SIZE];
+ unsigned char hostn[256];
+ unsigned char filen[1024];
+ FILE *fp;
+ uint16_t dpos;
+ size_t sz;
+ crypttale ct;
+
+ //Setup
+ random_wipe(buffer,BLOCK_SIZE);
+ init_encrypt(&ct,master_obscure,255);
+ gethostname(hostn,256);
+ sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
+ sprintf(filen,"%s/%s.evlt",path,hex512);
+
+ //Process
+ sz=evlt_sha_hex(m,hex512,s);
+ dpos=2+random()%(BLOCK_SIZE-132);
+ *(uint16_t *)buffer=dpos;
+ memcpy(buffer+dpos,hex512,129);
+ encrypt_data(&ct,buffer,BLOCK_SIZE);
+
+ //Write
+ fp=fopen(filen,"wb");
+ if (fp==NULL) {return 0;}
+ sz=fwrite(buffer,1,BLOCK_SIZE,fp);
+ fclose(fp);
+ if (sz<BLOCK_SIZE) {return 0;}
+ return sz;
 }

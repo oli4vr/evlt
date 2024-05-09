@@ -12,6 +12,9 @@ This application is currently still in an experimental state. Use it at your own
 - Multiple independent data blobs in the same vault.
 - Storage and retrieval of any data type.
 - Command-line interface for easy integration with scripts and automation.
+- On top of the 3 coordinate keys there is also a master key.
+- A default master key can be provided and locally cashed in an obscured manner.
+- A custom master key can be used for extra secret data.
 
 ## Use Cases
 
@@ -39,22 +42,18 @@ Technically you could consider it as a sort-of directory structure, but you have
 To store a sensitive password in the vault:
 
 ```bash
-printf "MyP@ssw0rd" | evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password 
+evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -p
 ```
-
-This command will store the password "MyP@ssw0rd" in the vault named "myvault" using the keys "key1", "key2", "key3", and 8 segments.
 
 ### Retrieving a Password
 
 To retrieve the stored password, but output as an invisible string between >>> and <<< characters. (copy/paste)
 
 ```bash
-evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -i
+evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -p
 ```
 
-The -i option chooses "invisible output mode". This could be handy for double-click copy/paste fields in interactive login scripts.
-
-### Storing a File
+### Storing a secret key
 
 To store the content of a file, such as an SSH private key:
 
@@ -64,12 +63,12 @@ evlt put /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 < id_rsa
 
 This command reads the content of the file "id_rsa" and stores it in the vault.
 
-### Retrieving a File
+### Retrieving a secret key
 
-To retrieve the stored binary file:
+To retrieve the stored key file and output as invisible copy/paste content on the terminal :
 
 ```bash
-evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 > id_rsa_recovered
+evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 -i
 ```
 
 This command writes the retrieved content to a new file "id_rsa_recovered".
@@ -92,6 +91,18 @@ evlt get /myvault/sysadmin/scipts/my_script.sh -n 4 -c
 
 The -c option executes the content of the script or binary executable data.
 
+### Delete a data blob from a vault
+
+Use the "del" action to remove a data blob and free it's space in the vault.
+
+```bash
+evlt del /myvault/sysadmin/scipts/my_data 
+evlt del /myvault/sysadmin/scipts/my_data2 -n 4
+evlt del /password/mypassword -p
+```
+
+Technically using /dev/null or an empty file as input technically has the same effect.
+
 ## Installation
 
 To install evlt, clone the repository and compile the source code:
@@ -107,23 +118,27 @@ Currently "make install" copies the executable to ~/bin. Make sure this is in yo
 ## Syntax
 
 <pre>
-evlt           Entropy Vault
-               by Olivier Van Rompuy
+evlt             Entropy Vault
+                 by Olivier Van Rompuy
 
- Syntax        evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
-               evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
+ Syntax          evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
+                 evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
+                 evlt del /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
 
- put/get       Store/Recall data. Uses stdin/stdout by default
- -v            Verbose mode
- -n NR         Use NR number of parallel vault file segments
-               Default = 8
- -i            Invisible copy/pasteable output between >>> and <<<
-               Good for passwords and keys.
- -c            Run content as a script or command
- -d path       Use an alternate dir path for the vault files
- -f file       Use file for input or output instead of stdin or stdout
- -p [passkey]  Use an aditional passkey. Can be optionally provided on the cli.
-               If not provided you need to enter it manually via a password prompt.
+ put/get         Store/Recall a data blob. Uses stdin/stdout by default
+ del             Delete a data blob
+
+ -v              Verbose mode
+ -n NR           Use NR number of parallel vault file segments. Default=8
+ -p              Password content -> Put: enter value using a password prompt
+                                  -> Get: Invisible copy/paste output
+ -i              Invisible copy/paste output. Good for keys.
+ -c              Run content as a script or command
+ -d path         Use an alternate dir path for the vault files
+ -f file         Use file for input or output instead of stdin or stdout
+ -m [masterkey]  Use a custom master key.
+                 If not provided you need to enter it manually via a password prompt.
+ -m prompt       Prompt for the default masterkey and store/change the value.
 </pre>
 
 ### How it works
