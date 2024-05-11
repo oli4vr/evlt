@@ -55,8 +55,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  } else if (strncmp(argv[0],"del",3)==0) {
   a->action=2;
   argc--;argv++;
- }
-
+ } 
 
  a->segments=8;
  a->verbose=0;

@@ -49,6 +49,17 @@ FILE* data2stream(unsigned char* data, size_t size) {
  return stream;
 }
 
+long get_file_size(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        return -1;
+    }
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    fclose(file);
+    return size;
+}
+
 //Wipe a buffer by replacing it's content with random bytes
 void random_wipe(unsigned char *buff,size_t size)
 {
@@ -320,6 +331,7 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  return 2;
 }
 
+
 int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass) {
  unsigned char buffer[BUFFER_SIZE];
  unsigned char *cp;
@@ -381,8 +393,17 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
     rename(v->wrtfile[n],v->segfile[n]);
    }
   }
+
   sync();
  }
+
+ for(n=0;n<v->segments;n++) {
+  if (get_file_size(v->segfile[n])==0) {
+    remove(v->segfile[n]);
+  }
+ }
+ sync();
+ return 0;
 }
 
 size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s) {

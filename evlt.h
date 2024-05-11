@@ -66,7 +66,7 @@ typedef struct _evlt_iter {
 
 /* Structure for defining an action to be performed on a vault */
 typedef struct _evlt_act {
- unsigned char action; // 0=get 1=put ...
+ unsigned char action; // 0=get 1=put 2=del ...
  unsigned char vname[32];
  unsigned char key1[512];
  unsigned char key2[512];
