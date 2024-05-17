@@ -8,46 +8,16 @@
 #include <pwd.h>
 #include <sys/stat.h>
 #include <linux/stat.h>
+#include <openssl/sha.h>
 #include <unistd.h>
 #include <sched.h>
-#include "sha512.h"
 #include "encrypt.h"
 #include "hexenc.h"
+#include "pipes.h"
 #include "evlt.h"
+#include "sftp.h"
 
 unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
-
-FILE* data2stream(unsigned char* data, size_t size) {
- int pipefd[2];
- if (pipe(pipefd) == -1) {
-  perror("pipe");
-  return NULL;
- }
-
- ssize_t written = write(pipefd[1], data, size);
- if (written == -1) {
-  perror("write");
-  close(pipefd[0]);
-  close(pipefd[1]);
-  return NULL;
- } else if (written != size) {
-  fprintf(stderr, "Incomplete write to pipe\n");
-  close(pipefd[0]);
-  close(pipefd[1]);
-  return NULL;
- }
-
- close(pipefd[1]); // Close the write-end of the pipe, we're done writing
-
- FILE* stream = fdopen(pipefd[0], "r");
- if (stream == NULL) {
-  perror("fdopen");
-  close(pipefd[0]);
-  return NULL;
- }
-
- return stream;
-}
 
 long get_file_size(const char *filename) {
     FILE *file = fopen(filename, "rb");
@@ -98,41 +68,52 @@ int explode1024(unsigned char *out,unsigned char * keystring) {
  return 0;
 }
 
-int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments) {
+int evlt_init(evlt_vault *v,evlt_act *a) {
  unsigned char subname[MAX_SEGMENTS][256];
  unsigned char exploded[1024];
  unsigned char shaout[256];
  unsigned char hexout[256];
  unsigned char *cp;
+ unsigned char rempath[1024];
  FILE *fp;
  size_t sz;
  int n;
  memset(v->name,0,sizeof(v->name));
- strncpy(v->name,name,32);
+ strncpy(v->name,a->vname,32);
  v->name[31]=0;
- v->segments=segments;
+ v->segments=a->segments;
+
+ a->data_size=0;
 
  //Hidden subdir in user home
  if (v->path[0]==0) {
-  snprintf(v->path,256,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  snprintf(v->path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  v->path[1023]=0;
  }
  mkdir(v->path,S_IRWXU);
 
- for(n=0;n<segments;n++) {
+ for(n=0;n<a->segments;n++) {
   //Generate vault segment filenames
   sz=64;
-  snprintf(subname[n],1024,"%s__%04lx__%04lx",v->name,segments,n);
+  snprintf(subname[n],1024,"%s__%04lx__%04lx",v->name,a->segments,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
   snprintf(v->segfile[n],1024,"%s/%s.evlt",v->path,hexout);
   //Generate write segment filenames
   sz=64;
-  snprintf(subname[n],1024,"$$Wr1T3temp$$__%s__%04lx__%04lx",v->name,segments,n);
+  snprintf(subname[n],1024,"$$Wr1T3temp$$__%s__%04lx__%04lx",v->name,a->segments,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
   snprintf(v->wrtfile[n],1024,"%s/%s.evlt",v->path,hexout);
+  //Generate remote write segment filenames
+  sz=64;
+  snprintf(subname[n],1024,"$$RemoteWr1T3$$__%s__%04lx__%04lx",v->name,a->segments,n);
+  explode1024(exploded,subname[n]);
+  SHA512(exploded,1024,shaout);
+  data2hex(shaout,hexout,&sz);
+  snprintf(v->rwrfile[n],1024,".evlt/%s.evlt",hexout);
   //Touch the vault segment files
   fp=fopen(v->segfile[n],"ab");
   if (fp!=NULL) {fclose(fp);}
@@ -316,45 +297,111 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
   nrread+=i.thr[n].nrread;
   i.datalength+=i.thr[n].datalength;
  }
- if (nrread<(v->segments)) {return 0;}
+ vc->act->data_size+=i.datalength;
+ if (nrread<(v->segments)) {return 0;} //END OF DATA
 
- if (i.datalength<1) {return 1;}
+ if (i.datalength<1) {return 1;} //NO MATCH
 
  if (v->wfp[0]==NULL && fp!=NULL) {
   rc=fwrite(i.data,1,i.datalength,fp);
  }
 
  if (i.eblock[0].flags & FLAG_STOP) {
-  return 0;
+  return 0; //END OF DATA
  }
 
- return 2;
+ return 2; //MATCH
 }
 
 
-int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass) {
+int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  unsigned char buffer[BUFFER_SIZE];
+ unsigned char tmp[65536]={0};
  unsigned char *cp;
  int len=0,clen,lput=MAX_SEGMENTS;
  int n,m,md,rc;
+ int bcnt=0;
  unsigned char newvault=0;
  unsigned char rcr=1,rcw=1;
  evlt_block bld[MAX_SEGMENTS];
  evlt_block * bd;
  evlt_vector vc;
- FILE *in, *out;
+ evlt_act getrsa;
+ evlt_vault vltrsa;
+ FILE *in, *out, *rsafp;
+ pipe_buffer pb;
+ sftp_thread_data sftp_td[MAX_SEGMENTS];
+ pthread_t sftp_th[MAX_SEGMENTS];
 
- if (fp==NULL && iomode==0) {return -1;}
- if (iomode==0) {
+ vc.act=a;
+
+ if (fp==NULL && a->action==0) {return -1;}
+ if (a->action==0) {
   in=NULL;out=fp;
  } else {
   in=fp;out=NULL;
  }
 
- init_encrypt(&vc.ct1,key1,1);
- init_encrypt(&vc.ct2,key2,1);
- init_encrypt(&vc.ct3,key3,1);
- if (pass[0]!=0) {init_encrypt(&vc.passkey,pass,3);}
+ // Remote vault code
+ if (a->sftp_port!=0 && a->sftp_host[0]!=0 && a->sftp_user[0]!=0) {
+  getrsa.action=0;
+  strncpy(getrsa.vname,".secrets",16);
+  strncpy(getrsa.key1,".remotehosts",16);
+  strncpy(getrsa.key2,".privatekey",16);
+  if (a->sftp_port!=22)
+   sprintf(getrsa.key3,"%s@%s:%d",a->sftp_user,a->sftp_host,a->sftp_port);
+  else
+   sprintf(getrsa.key3,"%s@%s",a->sftp_user,a->sftp_host);
+  strncpy(getrsa.passkey,a->passkey,512);
+  strncpy(getrsa.path,a->path,1024);
+  getrsa.passkey[511]=0;
+  getrsa.path[1023]=0;
+  getrsa.segments=1;
+  getrsa.verbose=a->verbose;
+  getrsa.sftp_host[0]=0;
+  getrsa.sftp_user[0]=0;
+  getrsa.sftp_port=0;
+  rsafp=stream2data(&pb,tmp,4200);
+  usleep(1000);
+  if (rsafp==NULL) {
+   return -19;
+  }
+  rc=evlt_init(&vltrsa,&getrsa);
+  if (rc!=0) {fclose(rsafp); return -20;}
+  rc=evlt_io(&vltrsa,rsafp,&getrsa);
+//  fprintf(stderr,"### DEBUG : RC=%d /%s/%s/%s/%s size=%llu\n",rc,getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3,getrsa.data_size);
+  fwrite("\0",1,2,rsafp);
+  fflush(rsafp);
+  fclose(rsafp);
+  usleep(100000);
+  strncpy(a->rsakey,tmp,4200);
+  a->rsakey[4199]=0;
+  rc=strnlen(a->rsakey,4200);
+//  fprintf(stderr,"RC=%d\n",rc);
+  if (rc<=0) {return -21;}
+  ssh_cmd(a->sftp_user,a->sftp_host,a->sftp_port,a->rsakey,"echo mkdir ~/.evlt | /bin/bash\n");
+  for(n=0;n<v->segments;n++) {
+   sftp_td[n].action=0;
+   sftp_td[n].user=a->sftp_user;
+   sftp_td[n].host=a->sftp_host;
+   sftp_td[n].tcpport=a->sftp_port;
+   sftp_td[n].lpath=v->segfile[n];
+   sftp_td[n].rpath=v->rwrfile[n];
+   sftp_td[n].rsa=a->rsakey;
+   rc=pthread_create(&(sftp_th[n]),NULL,sftp_thread,&(sftp_td[n]));
+  }
+  rc=0;
+  for(n=0;n<v->segments;n++) {
+   pthread_join(sftp_th[n],NULL);
+   if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+  }
+  if (rc<0 && rc!=-7) {return -22;}
+ }
+
+ init_encrypt(&vc.ct1,a->key1,1);
+ init_encrypt(&vc.ct2,a->key2,1);
+ init_encrypt(&vc.ct3,a->key3,1);
+ if (a->passkey[0]!=0) {init_encrypt(&vc.passkey,a->passkey,3);}
  else {vc.passkey.key[0]=0;}
  vc.stop=0;
 
@@ -365,8 +412,8 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
   if (v->rfp[n]==NULL) {fprintf(stderr,"Error: Can't open the segment file for read.\n%s\n",v->segfile[n]); return -2;}
  }
  
- //in case of iomode 1 (write), open write files for binary write
- if (iomode>0) {
+ //in case of a->action 1 (write), open write files for binary write
+ if (a->action>0) {
   for(n=0;n<v->segments;n++) {
    v->wfp[n]=fopen(v->wrtfile[n],"wb");
    if (v->wfp[n]==NULL) {fprintf(stderr,"Error: Can't open the temp segment file for write.\n%s\n",v->wrtfile[n]); return -2;}
@@ -374,9 +421,9 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
  }
 
  //Mix write/read
- if (iomode==0) {rcw=0;}
+ if (a->action==0) {rcw=0;}
  while (rcw>0 || rcr>0) {
-  if (rcw>0 && iomode>0) {rcw=evlt_iter_put(v,in,&vc);}
+  if (rcw>0 && a->action>0) {rcw=evlt_iter_put(v,in,&vc);}
   if (rcr>0) {rcr=evlt_iter_get(v,out,&vc);}
  }
 
@@ -386,7 +433,7 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
  }
 
  //in case of mode 1 (write), close write file and overwrite copy to read files
- if (iomode>0) {
+ if (a->action>0) {
   for(n=0;n<v->segments;n++) {
    if (v->wfp[n]!= NULL) {
     fclose(v->wfp[n]);
@@ -397,6 +444,28 @@ int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsi
   sync();
  }
 
+ // Remote vault code
+ if (a->sftp_port!=0 && a->action>0) {
+  for(n=0;n<v->segments;n++) {
+   sftp_td[n].action=1;
+   sftp_td[n].user=a->sftp_user;
+   sftp_td[n].host=a->sftp_host;
+   sftp_td[n].tcpport=a->sftp_port;
+   sftp_td[n].lpath=v->segfile[n];
+   sftp_td[n].rpath=v->rwrfile[n];
+   sftp_td[n].rsa=a->rsakey;
+   rc=pthread_create(&(sftp_th[n]),NULL,sftp_thread,&(sftp_td[n]));
+   //rc=put_sftp(a->sftp_user,a->sftp_host,a->sftp_port,v->segfile[n],v->segfile[n],a->rsakey);
+  }
+  rc=0;
+  for(n=0;n<v->segments;n++) {
+   pthread_join(sftp_th[n],NULL);
+   if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+  }
+  if (rc<0) {return -22;}
+ }
+
+ //Remove empty segment files
  for(n=0;n<v->segments;n++) {
   if (get_file_size(v->segfile[n])==0) {
     remove(v->segfile[n]);

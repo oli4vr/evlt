@@ -9,9 +9,13 @@
 #include <pwd.h>
 #include <termios.h>
 #include <unistd.h>
-#include "sha512.h"
+#include <limits.h>
+//#include "sha512.h"
+#include <openssl/sha.h>
 #include "encrypt.h"
 #include "hexenc.h"
+#include "pipes.h"
+#include "sftp.h"
 #include "evlt.h"
 
 unsigned char hiddenout=0;
@@ -24,6 +28,51 @@ unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf,size_
  strncpy(buf,getpass(prompt),80);
  buf[79]=0;
  return buf;
+}
+
+int process_rhoststring(unsigned char *s,evlt_act *a) {
+ size_t n,l;
+ unsigned char tmp[256];
+ unsigned char *s1=NULL;
+ unsigned char *s2=NULL;
+ unsigned char *s3=NULL;
+ unsigned char *sp=NULL;
+ unsigned char *cp;
+ if (s==NULL) return 0;
+ if (*s==0) return 0;
+ strncpy(tmp,s,256);
+ tmp[255]=0;
+ cp=tmp;
+ sp=tmp;
+ l=strnlen(tmp,256);
+ for(n=0;n<l && *cp!=0 && *cp!='@';n++) {cp++;}
+ if (*cp=='@') {
+  *cp=0;
+  sp=cp+1;
+  strncpy(a->sftp_user,tmp,64);
+  a->sftp_user[63]=0;
+ } else {
+  sp=tmp;
+//  gethostname(a->sftp_user,64);
+  strncpy(a->sftp_user,getlogin(),64);
+  a->sftp_user[63]=0;
+ }
+ cp=tmp+l-1;
+ for(n=l;n>0 && *cp!=0 && *cp!=':';n--) {cp--;}
+ if (*cp==':') {
+  *cp=0;
+  a->sftp_port=atoi(cp+1);
+ } else {
+  a->sftp_port=22;
+ }
+ strncpy(a->sftp_host,sp,128);
+ a->sftp_host[127]=0;
+
+ if (a->sftp_host[0]==0) return 0;
+
+// fprintf(stderr,"%s %s %d\n",a->sftp_user,a->sftp_host,a->sftp_port);
+
+ return 1;
 }
 
 //Process option parameters
@@ -67,8 +116,8 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  if (*cp=='/') {cp++;}
  sp=cp;
  a->key1[0]=0;
- a->key1[1]=0;
- a->key1[2]=0;
+ a->key2[0]=0;
+ a->key3[0]=0;
  for(n=0;n<l && kp<4;n++) {
   if (*cp=='/' || *cp==0) {
    switch (kp) {
@@ -112,6 +161,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       argc--;argv++;
       if (argc<1) {return -5;}
       else {
+       if (argv[0][0]=='-') {return -5;}
        a->segments=atoi(argv[0]);
        if (a->segments<1 || a->segments>32) {a->segments=8;}
       }
@@ -127,6 +177,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       argc--;argv++;
       if (argc<1) {return -7;}
       else {
+        if (argv[0][0]=='-') {return -7;}
         opt_fname=argv[0];
       }
      break;;
@@ -175,6 +226,14 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       a->segments=1;
       hiddenout=1;
      break;;
+    case 'R':
+      argc--;argv++;
+      if (argc<1) {return -13;}
+      else {
+        if (argv[0][0]=='-') {return -13;}
+        process_rhoststring(argv[0],a);
+      }
+     break;;
    }
   }
   argc--;argv++;
@@ -187,9 +246,9 @@ int print_help(unsigned char *cmd) {
  if (cmd==NULL) {return -1;}
  fprintf(stderr,"evlt             Entropy Vault\n");
  fprintf(stderr,"                 by Olivier Van Rompuy\n\n");
- fprintf(stderr," Syntax          evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n");
- fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n");
- fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]\n\n");
+ fprintf(stderr," Syntax          evlt put /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n");
+ fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n");
+ fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n\n");
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," del             Delete a data blob\n\n");
  fprintf(stderr," -v              Verbose mode\n");
@@ -202,7 +261,10 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," -f file         Use file for input or output instead of stdin or stdout\n");
  fprintf(stderr," -m [masterkey]  Use a custom master key.\n");
  fprintf(stderr,"                 If not provided you need to enter it manually via a password prompt.\n");
- fprintf(stderr," -m prompt       Prompt for the default masterkey and store/change the value.\n\n");
+ fprintf(stderr," -m prompt       Prompt for the default masterkey and store/change the value.\n");
+ fprintf(stderr," -R [username@]host[:port]\n");
+ fprintf(stderr,"                 Work on a remote vault via ssh. The rsa public key must be in ~/.ssh/authorized_keys on the remote host.\n");
+ fprintf(stderr,"                 You can store RSA private keys in vault location /.secrets/.remotehosts/.privatekey/user@host[:port]\n\n");
  return 0;
 }
 
@@ -210,7 +272,7 @@ int print_help(unsigned char *cmd) {
 int main(int argc,char ** argv) {
  evlt_vault v;
  evlt_act a;
- int optrc;
+ int optrc,rc;
  unsigned char fname[1024]={0};
  unsigned char tmp[1024];
  unsigned char pass1[81];
@@ -221,6 +283,10 @@ int main(int argc,char ** argv) {
 
  memset(a.passkey,0,512);
  a.passkey[0]=0;
+ a.sftp_host[0]=0;
+ a.sftp_user[0]=0;
+ a.sftp_port=0;
+ a.rsakey[0]=0;
 
  optrc=proc_opt(&a,argc,argv);
 
@@ -280,11 +346,17 @@ int main(int argc,char ** argv) {
  }
 
  v.path[0]=0;
+ a.path[0]=0;
  if (evlt_path!=NULL) {
   strncpy(v.path,evlt_path,1024);
+  strncpy(a.path,evlt_path,1024);
+ } else {
+  snprintf(v.path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  v.path[1023]=0;
+  strncpy(a.path,v.path,1024);
  }
 
- evlt_init(&v,a.vname,a.segments);
+ evlt_init(&v,&a);
 
  if (a.passkey[0]==0 && v.path[0]!=0) {
   sz=evlt_get_masterkey(v.path,tmp);
@@ -302,24 +374,28 @@ int main(int argc,char ** argv) {
   }
  }
 
+ rc=-999;
  switch (a.action) {
   case 0:
     if (hiddenout==1) {
      if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m",27);
      else fprintf(stdout,"### Payload Start ###\n%c[8m",27);
     }
-    evlt_io(&v,fpo,0,a.key1,a.key2,a.key3,a.passkey);
+    rc=evlt_io(&v,fpo,&a);
     if (hiddenout==1) {
      if (passcont) fprintf(stdout,"%c[m<<<\n\n",27);
      else fprintf(stdout,"%c[m\n### Payload End   ###\n",27);
     }
    break;;
   case 1:
-    evlt_io(&v,fpi,1,a.key1,a.key2,a.key3,a.passkey);
+    rc=evlt_io(&v,fpi,&a);
    break;;
   case 2:
-    evlt_io(&v,NULL,1,a.key1,a.key2,a.key3,a.passkey);
+    rc=evlt_io(&v,NULL,&a);
    break;
+ }
+ if (a.verbose && a.action==0) {
+  fprintf(stderr,"Data Size = %llu\n",rc,a.data_size);
  }
 
  if (fname[0]!=0) {

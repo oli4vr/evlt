@@ -99,6 +99,29 @@ evlt del /password/mypassword -p
 
 Technically using /dev/null or an empty file as input technically has the same effect.
 
+### Using remote vaults (via sftp)
+Add an RSA private key for a remote connection.
+```bash
+ssh-keygen -b 2048 -f mykey
+evlt put /.secrets/.remotehosts/.privatekey/username@remotehost -n 1 -f mykey
+```
+The .secrets vault used is always the single segment version. Make sure "-n 1"
+
+Store item in a remote vault.
+```bash
+evlt put /myvault/mydata/item -R username@remotehost -f inputfile
+```
+
+Retrieve item from a remote vault.
+```bash
+evlt get /myvault/mydata/item -R username@remotehost -f inputfile
+```
+
+A remote vault is always completely copied over locally. When altered the new version will again be uploaded to the remote location.
+
+Optionally you can also use custom tcp ports with -R username@hostname:PORT .
+If you do this do make sure your private key is also stored in /.secrets/.remotehosts/.privatekey/username@remotehost:PORT
+
 ## Installation
 
 To install evlt, clone the repository and compile the source code:
@@ -117,9 +140,9 @@ Currently "make install" copies the executable to ~/bin. Make sure this is in yo
 evlt             Entropy Vault
                  by Olivier Van Rompuy
 
- Syntax          evlt put /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
-                 evlt get /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
-                 evlt del /vaultname/key1/key2/key3 [-v] [-n NR_SEGMENTS]
+ Syntax          evlt put /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
+                 evlt get /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
+                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
 
  put/get         Store/Recall a data blob. Uses stdin/stdout by default
  del             Delete a data blob
@@ -135,6 +158,10 @@ evlt             Entropy Vault
  -m [masterkey]  Use a custom master key.
                  If not provided you need to enter it manually via a password prompt.
  -m prompt       Prompt for the default masterkey and store/change the value.
+ -R [username@]host[:port]
+                 Work on a remote vault via ssh. The rsa public key must be in ~/.ssh/authorized_keys on the remote host.
+                 You can store RSA private keys in vault location /.secrets/.remotehosts/.privatekey/user@host[:port]
+
 </pre>
 
 ### How it works

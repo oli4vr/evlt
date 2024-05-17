@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "sha512.h"
+#include <openssl/sha.h>
 #include "encrypt.h"
 
 void sha_key(unsigned char * src,unsigned char * tgt) {

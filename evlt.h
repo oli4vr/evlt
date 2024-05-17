@@ -10,6 +10,8 @@
 #define THREADS_MINSEG_R 2
 #define FLAG_STOP 0x8000
 
+#define LIBSSH_STATIC
+
 /* Structure for holding a block of data with its SHA-512 hash and metadata */
 typedef struct _evlt_block {
  unsigned char data[MAX_DATA_SIZE];
@@ -19,6 +21,7 @@ typedef struct _evlt_block {
 } evlt_block;
 
 typedef struct _evlt_iter evlt_iter;
+typedef struct _evlt_act evlt_act;
 
 /* Structure for managing vault files and their segments */
 typedef struct _evlt_vault {
@@ -27,6 +30,7 @@ typedef struct _evlt_vault {
  unsigned char segments;
  unsigned char segfile[MAX_SEGMENTS][1024];
  unsigned char wrtfile[MAX_SEGMENTS][1024];
+ unsigned char rwrfile[MAX_SEGMENTS][1024];
  FILE* rfp[MAX_SEGMENTS];
  FILE* wfp[MAX_SEGMENTS];
 } evlt_vault;
@@ -38,6 +42,7 @@ typedef struct _evlt_vector {
  crypttale ct3;
  crypttale passkey;
  unsigned char stop;
+ evlt_act *act;
 } evlt_vector;
 
 /* Structure for managing threads in the encryption/decryption process */
@@ -74,13 +79,19 @@ typedef struct _evlt_act {
  unsigned char passkey[512];
  unsigned char segments;
  unsigned char verbose;
+ unsigned char path[1024];
+ unsigned char sftp_host[128];
+ unsigned char sftp_user[64];
+ unsigned char rsakey[4200];
+ uint16_t sftp_port;
+ uint64_t data_size;
 } evlt_act;
 
 /* Initializes a vault with the given name and number of segments */
-int evlt_init(evlt_vault *v,unsigned char *name,unsigned char segments);
+int evlt_init(evlt_vault *v,evlt_act *a);
 
 /* Handles input/output operations for a vault */
-int evlt_io(evlt_vault *v,FILE *fp,unsigned char iomode,unsigned char *key1,unsigned char *key2,unsigned char *key3,unsigned char *pass);
+int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a);
 
 // Data block to FILE* stream
 FILE* data2stream(unsigned char* data, size_t size);
