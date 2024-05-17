@@ -11,29 +11,29 @@ LDFLAGS := -L. -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lssh -lssl -lcrypto 
 JOBS := -j$(NUM_CTHR)
 
 # Build all
-all: ssl ssh evlt
+all: ssl ssh main
 
 # Build openssl as a static library
 ssl:
 	rm -rf $(INSTALL_DIR) 2>/dev/null
 	git clone $(OPENSSL_REPO) openssl
-	cd openssl && ./config --prefix=$(INSTALL_DIR) no-shared && make $(JOBS) && make install
+	cd openssl && ./config --prefix=$(INSTALL_DIR) no-shared no-docs && make $(JOBS) && make install
 
 # Build libssh and make it static
 ssh:
 	rm -rf $(LIBSSH_DIR)
 	git clone $(LIBSSH_REPO) $(LIBSSH_DIR)
 	mkdir -p $(LIBSSH_DIR)/build
-	cd $(LIBSSH_DIR)/build && cmake -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a" .. && make $(JOBS) && make install
+	cd $(LIBSSH_DIR)/build && cmake -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a;$(INSTALL_DIR)/lib64" .. && make $(JOBS) && make install
 
 # Build the main application
-evlt:
+main:
 	gcc -c encrypt.c -o encrypt.o $(CFLAGS)
 	gcc -c hexenc.c -o hexenc.o $(CFLAGS)
 	gcc -c pipes.c -o pipes.o $(CFLAGS)
 	gcc -c evlt.c -o evlt.o $(CFLAGS)
 	gcc -c sftp.c -o sftp.o $(CFLAGS) 
-	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o $(CFLAGS) $(LDFLAGS) 
+	gcc -static-libgcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o $(CFLAGS) $(LDFLAGS) 
 
 # Clean only the main application
 clean:

@@ -53,6 +53,4 @@ Mkfile.old
 dkms.conf
 
 #Subdirs
-openssl/**/*
-install/**/*
-libssh/**/*
+*/**/*
