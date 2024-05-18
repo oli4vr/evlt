@@ -6,7 +6,7 @@ INSTALL_DIR := $(MAINDIR)/inst
 LIBSSH_DIR := $(MAINDIR)/libssh
 OPENSSL_REPO := https://github.com/openssl/openssl.git
 LIBSSH_REPO := https://git.libssh.org/projects/libssh.git
-CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
+CFLAGS := -Wl -Bstatic -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
 LDFLAGS := -L. -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lssh -lssl -lcrypto -lpthread
 JOBS := -j$(NUM_CTHR)
 
