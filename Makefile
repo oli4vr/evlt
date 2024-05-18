@@ -1,14 +1,13 @@
 # Variables
 NUM_CPUS := $(shell nproc)
-NUM_CTHR := $(shell echo $$(($(NUM_CPUS) * 2)))
+NUM_CTHR := $(shell echo $$(($(NUM_CPUS) * 4)))
 MAINDIR := $(CURDIR)
 INSTALL_DIR := $(MAINDIR)/inst
 LIBSSH_DIR := $(MAINDIR)/libssh
 OPENSSL_REPO := https://github.com/openssl/openssl.git
 LIBSSH_REPO := https://git.libssh.org/projects/libssh.git
-CFLAGS := -Wl -Bstatic -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
-#LDFLAGS := -L. -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lssh -lssl -lcrypto -lpthread
-LDFLAGS := -lpthread
+CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
+LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread
 STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a
 JOBS := -j$(NUM_CTHR)
 
@@ -26,7 +25,7 @@ ssh:
 	rm -rf $(LIBSSH_DIR)
 	git clone $(LIBSSH_REPO) $(LIBSSH_DIR)
 	mkdir -p $(LIBSSH_DIR)/build
-	cd $(LIBSSH_DIR)/build && cmake -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a;$(INSTALL_DIR)/lib64" .. && make $(JOBS) && make install
+	cd $(LIBSSH_DIR)/build && cmake -DWITH_GSSAPI=OFF -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a;$(INSTALL_DIR)/lib64" .. && make $(JOBS) && make install
 
 # Build the main application
 main:
