@@ -84,7 +84,8 @@ typedef struct _evlt_act {
  unsigned char sftp_user[64];
  unsigned char rsakey[4200];
  uint16_t sftp_port;
- uint64_t data_size;
+ uint64_t read_data_size;
+ uint64_t write_data_size;
 } evlt_act;
 
 /* Initializes a vault with the given name and number of segments */

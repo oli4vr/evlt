@@ -10,7 +10,6 @@
 #include <termios.h>
 #include <unistd.h>
 #include <limits.h>
-//#include "sha512.h"
 #include <openssl/sha.h>
 #include "encrypt.h"
 #include "hexenc.h"
@@ -200,7 +199,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
         evlt_getpass("Master Key 1st : ",tmp,512);
         evlt_getpass("Master Key 2nd : ",passchk,512);
         if (strncmp(tmp,passchk,512)!=0) {
-         fprintf(stderr,"Error: Password entries do not match!\n");
+         fprintf(stderr,"### ERROR   : Password entries do not match!\n");
          return -4;
         }
        }
@@ -304,7 +303,7 @@ int main(int argc,char ** argv) {
   evlt_getpass("Password 2nd : ",pass2,80);
   pass2[80]=0;
   if (strncmp(pass1,pass2,80)!=0) {
-   fprintf(stderr,"Error: Password content does not match\n");
+   fprintf(stderr,"### ERROR   : Password content does not match\n");
    return -11;
   }
   fpi=data2stream(pass1,strnlen(pass1,81));
@@ -326,7 +325,7 @@ int main(int argc,char ** argv) {
       fpo=NULL;
       fpo=fopen(fname,"wb");
       if (fpo==NULL) {
-        fprintf(stderr,"Error: Failed to open file %s for write\n",fname);
+        fprintf(stderr,"### ERROR   : Failed to open file %s for write\n",fname);
         return -2;
       }
      break;;
@@ -334,7 +333,7 @@ int main(int argc,char ** argv) {
       fpi=NULL;
       fpi=fopen(fname,"rb");
       if (fpi==NULL) {
-        fprintf(stderr,"Error: Failed to open file %s for read\n",fname);
+        fprintf(stderr,"### ERROR   : Failed to open file %s for read\n",fname);
         return -3;
       }
      break;;
@@ -342,7 +341,7 @@ int main(int argc,char ** argv) {
  }
 
  if (a.verbose) {
-  fprintf(stderr,"Action: %d\nVault: %s\nSegments: %d\nKey1: %s\nKey2: %s\nKey3: %s\n",a.action,a.vname,a.segments,a.key1,a.key2,a.key3);
+  fprintf(stderr,"### VERBOSE : Action=%d\n### VERBOSE : Vault=%s\n### VERBOSE : Segments=%d\n### VERBOSE : Key1=%s\n### VERBOSE : Key2=%s\n### VERBOSE : Key3=%s\n",a.action,a.vname,a.segments,a.key1,a.key2,a.key3);
  }
 
  v.path[0]=0;
@@ -394,8 +393,8 @@ int main(int argc,char ** argv) {
     rc=evlt_io(&v,NULL,&a);
    break;
  }
- if (a.verbose && a.action==0) {
-  fprintf(stderr,"Data Size = %llu\n",rc,a.data_size);
+ if (a.verbose) {
+  fprintf(stderr,"### VERBOSE : IO RC=%d\n### VERBOSE : Original_Read_Data_Size=%llu\n### VERBOSE : New_Write_Data_size=%llu\n",rc,a.read_data_size,a.write_data_size);
  }
 
  if (fname[0]!=0) {

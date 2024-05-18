@@ -17,6 +17,8 @@
 #include "evlt.h"
 #include "sftp.h"
 
+#define SFTP_RETRY 3
+
 unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
 
 long get_file_size(const char *filename) {
@@ -83,7 +85,8 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  v->name[31]=0;
  v->segments=a->segments;
 
- a->data_size=0;
+ a->read_data_size=0;
+ a->write_data_size=0;
 
  //Hidden subdir in user home
  if (v->path[0]==0) {
@@ -117,7 +120,7 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
   //Touch the vault segment files
   fp=fopen(v->segfile[n],"ab");
   if (fp!=NULL) {fclose(fp);}
-  else {fprintf(stderr,"Error: Can't open segment file for write.\n");return -1;}
+  else {fprintf(stderr,"### ERROR   : Can't open segment file for write.\n");return -1;}
  }
  return 0;
 }
@@ -146,7 +149,7 @@ void* evlt_put_thread(void *ethr) {
   encrypt_data(&vc->passkey,buffer,BLOCK_SIZE);
 
  rc=fwrite(buffer,BLOCK_SIZE,1,t->wfp);
- if (rc!=1) {fprintf(stderr,"Error: Write failure to temp segment file.\n");}
+ if (rc!=1) {fprintf(stderr,"### ERROR   : Write failure to temp segment file.\n");}
 
  return NULL;
 }
@@ -188,9 +191,10 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
 
   eb->length=blen;
   eb->flags=flags;
-  if (blen>0) {
+  memcpy(eb->data,cp,MAX_DATA_SIZE);
+  /*if (blen>0) {
    memcpy(eb->data,cp,eb->length);
-  }
+  }*/
 
   i.thr[n].vault=v;
   i.thr[n].vector=vc;
@@ -205,6 +209,8 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
   } else {
    evlt_put_thread(&(i.thr[n]));
   }
+
+  vc->act->write_data_size+=blen;
 
   cp+=MAX_DATA_SIZE;
  }
@@ -297,7 +303,7 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
   nrread+=i.thr[n].nrread;
   i.datalength+=i.thr[n].datalength;
  }
- vc->act->data_size+=i.datalength;
+ vc->act->read_data_size+=i.datalength;
  if (nrread<(v->segments)) {return 0;} //END OF DATA
 
  if (i.datalength<1) {return 1;} //NO MATCH
@@ -318,7 +324,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  unsigned char buffer[BUFFER_SIZE];
  unsigned char tmp[65536]={0};
  unsigned char *cp;
- int len=0,clen,lput=MAX_SEGMENTS;
+ int rn,len=0,clen,lput=MAX_SEGMENTS;
  int n,m,md,rc;
  int bcnt=0;
  unsigned char newvault=0;
@@ -361,6 +367,8 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   getrsa.sftp_host[0]=0;
   getrsa.sftp_user[0]=0;
   getrsa.sftp_port=0;
+  if (a->verbose)
+   fprintf(stderr,"### VERBOSE : Checking for RSA key in /%s/%s/%s/%s\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
   rsafp=stream2data(&pb,tmp,4200);
   usleep(1000);
   if (rsafp==NULL) {
@@ -369,7 +377,8 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   rc=evlt_init(&vltrsa,&getrsa);
   if (rc!=0) {fclose(rsafp); return -20;}
   rc=evlt_io(&vltrsa,rsafp,&getrsa);
-//  fprintf(stderr,"### DEBUG : RC=%d /%s/%s/%s/%s size=%llu\n",rc,getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3,getrsa.data_size);
+  if (a->verbose)
+   fprintf(stderr,"### VERBOSE : Get rsa key data RC=%d size=%llu\n",rc,getrsa.read_data_size);
   fwrite("\0",1,2,rsafp);
   fflush(rsafp);
   fclose(rsafp);
@@ -377,25 +386,69 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   strncpy(a->rsakey,tmp,4200);
   a->rsakey[4199]=0;
   rc=strnlen(a->rsakey,4200);
-//  fprintf(stderr,"RC=%d\n",rc);
-  if (rc<=0) {return -21;}
+  if (a->verbose)
+   fprintf(stderr,"### VERBOSE : Actual key size in memory buffer = %d\n",rc);
+  if (rc<=0) {
+   fprintf(stderr,"### ERROR   : Failed to acquire RSA key for this remote connection\n");
+   fprintf(stderr,"  -> Suggested action : evlt put /%s/%s/%s/%s -n 1 -f private_keyfile\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
+   fprintf(stderr,"  ->                    Make sure the public key is added to the remote authorized_keys.\n");
+   return -21;
+  }
   ssh_cmd(a->sftp_user,a->sftp_host,a->sftp_port,a->rsakey,"echo mkdir ~/.evlt | /bin/bash\n");
-  for(n=0;n<v->segments;n++) {
-   sftp_td[n].action=0;
-   sftp_td[n].user=a->sftp_user;
-   sftp_td[n].host=a->sftp_host;
-   sftp_td[n].tcpport=a->sftp_port;
-   sftp_td[n].lpath=v->segfile[n];
-   sftp_td[n].rpath=v->rwrfile[n];
-   sftp_td[n].rsa=a->rsakey;
-   rc=pthread_create(&(sftp_th[n]),NULL,sftp_thread,&(sftp_td[n]));
+
+  if (a->verbose) fprintf(stderr,"### VERBOSE : Check whether remote files have changed\n");
+  rc=-99;
+  for(rn=0;rn<SFTP_RETRY && rc<0 && rc!=-7;rn++) {
+   if (rn>0 && a->verbose) fprintf(stderr,"### WARNING : Local/remote compare retry\n");
+   rc=sftp_compare(a->sftp_user,a->sftp_host,a->sftp_port,v->segfile[0],v->rwrfile[0],a->rsakey);
   }
-  rc=0;
-  for(n=0;n<v->segments;n++) {
-   pthread_join(sftp_th[n],NULL);
-   if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+  if (rc==0) {
+   if (a->verbose) fprintf(stderr,"### VERBOSE : Remote file unchanged\n");
   }
-  if (rc<0 && rc!=-7) {return -22;}
+  if (rc==-7) {
+   fprintf(stderr,"### VERBOSE : Remote files do not yet exist");
+   rc=0;
+  }
+  if (rc==-8) {
+   fprintf(stderr,"### VERBOSE : Local files do not yet exist");
+   rc=1;
+  }
+  if (rc<0) {
+   fprintf(stderr,"### ERROR   : Failed to compare remote file stats");
+   return -23;
+  }
+  if (rc<0) {
+   fprintf(stderr,"### ERROR   : Failed to compare remote file stats");
+   return -23;
+  }
+  if (rc==1) {
+   if (a->verbose) fprintf(stderr,"### VERBOSE : sftp get remote vault\n");
+   for(n=0;n<v->segments;n++) {
+    sftp_td[n].action=0;
+    sftp_td[n].user=a->sftp_user;
+    sftp_td[n].host=a->sftp_host;
+    sftp_td[n].tcpport=a->sftp_port;
+    sftp_td[n].lpath=v->segfile[n];
+    sftp_td[n].rpath=v->rwrfile[n];
+    sftp_td[n].rsa=a->rsakey;
+    rc=pthread_create(&(sftp_th[n]),NULL,sftp_thread,&(sftp_td[n]));
+   }
+   if (a->verbose) fprintf(stderr,"### VERBOSE : sftp get remote vault\n");
+   rc=-22;
+   for(rn=0;rn<SFTP_RETRY && rc<0 && rc!=-7;rn++) {
+    if (rc>0 && a->verbose) {fprintf(stderr,"### WARNING : Retry failed sftp get\n");}
+    rc=0;
+    for(n=0;n<v->segments;n++) {
+     pthread_join(sftp_th[n],NULL);
+     if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+    }
+   }
+   if (rc<0 && rc!=-7) {
+    fprintf(stderr,"### ERROR   : get remote vault failed\n");
+    return -22;
+   }
+   if (rc==-7 && a->verbose) {fprintf(stderr,"### VERBOSE : Vault files not found on remote host, start from [new] local one.\n");}
+  }
  }
 
  init_encrypt(&vc.ct1,a->key1,1);
@@ -409,18 +462,19 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  for(n=0;n<v->segments;n++) {
   v->rfp[n]=fopen(v->segfile[n],"rb");
   v->wfp[n]=NULL;
-  if (v->rfp[n]==NULL) {fprintf(stderr,"Error: Can't open the segment file for read.\n%s\n",v->segfile[n]); return -2;}
+  if (v->rfp[n]==NULL) {fprintf(stderr,"### ERROR   : Can't open the segment file for read.\n%s\n",v->segfile[n]); return -2;}
  }
  
  //in case of a->action 1 (write), open write files for binary write
  if (a->action>0) {
   for(n=0;n<v->segments;n++) {
    v->wfp[n]=fopen(v->wrtfile[n],"wb");
-   if (v->wfp[n]==NULL) {fprintf(stderr,"Error: Can't open the temp segment file for write.\n%s\n",v->wrtfile[n]); return -2;}
+   if (v->wfp[n]==NULL) {fprintf(stderr,"### ERROR   : Can't open the temp segment file for write.\n%s\n",v->wrtfile[n]); return -2;}
   }
  }
 
  //Mix write/read
+ if (a->verbose) fprintf(stderr,"### VERBOSE : R/W IO ON LOCAL VAULT %s\n",a->vname);
  if (a->action==0) {rcw=0;}
  while (rcw>0 || rcr>0) {
   if (rcw>0 && a->action>0) {rcw=evlt_iter_put(v,in,&vc);}
@@ -444,6 +498,22 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   sync();
  }
 
+ //Remove empty segment files
+ unsigned char del=0;
+ for(n=0;n<v->segments;n++) {
+  if (get_file_size(v->segfile[n])==0) {
+    remove(v->segfile[n]);
+    if (a->sftp_port!=0) {
+     rc=-99;
+     for(rn=0;rn<SFTP_RETRY && rc<0;rn++) {
+      rc=del_sftp(a->sftp_user,a->sftp_host,a->sftp_port,v->rwrfile[n],a->rsakey);
+     }
+    }
+    del=1;
+  }
+ }
+ if (del==1) return 0;
+
  // Remote vault code
  if (a->sftp_port!=0 && a->action>0) {
   for(n=0;n<v->segments;n++) {
@@ -457,20 +527,22 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    rc=pthread_create(&(sftp_th[n]),NULL,sftp_thread,&(sftp_td[n]));
    //rc=put_sftp(a->sftp_user,a->sftp_host,a->sftp_port,v->segfile[n],v->segfile[n],a->rsakey);
   }
-  rc=0;
-  for(n=0;n<v->segments;n++) {
-   pthread_join(sftp_th[n],NULL);
-   if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+  if (a->verbose) fprintf(stderr,"### VERBOSE : sftp put remote vault\n");
+  rc=-22;
+  for(rn=0;rn<SFTP_RETRY && rc<0;rn++) {
+   if (rc>0 && a->verbose) {fprintf(stderr,"### WARNING : Retry failed sftp put\n");}
+   rc=0;
+   for(n=0;n<v->segments;n++) {
+    pthread_join(sftp_th[n],NULL);
+    if (sftp_td[n].rc<0) {rc=sftp_td[n].rc;}
+   }
   }
-  if (rc<0) {return -22;}
+  if (rc<0) {
+   fprintf(stderr,"### ERROR  : Put remote vault failed\n");
+   return -22;
+  }
  }
 
- //Remove empty segment files
- for(n=0;n<v->segments;n++) {
-  if (get_file_size(v->segfile[n])==0) {
-    remove(v->segfile[n]);
-  }
- }
  sync();
  return 0;
 }
