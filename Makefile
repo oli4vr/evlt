@@ -7,7 +7,9 @@ LIBSSH_DIR := $(MAINDIR)/libssh
 OPENSSL_REPO := https://github.com/openssl/openssl.git
 LIBSSH_REPO := https://git.libssh.org/projects/libssh.git
 CFLAGS := -Wl -Bstatic -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
-LDFLAGS := -L. -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lssh -lssl -lcrypto -lpthread
+#LDFLAGS := -L. -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lssh -lssl -lcrypto -lpthread
+LDFLAGS := -lpthread
+STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a
 JOBS := -j$(NUM_CTHR)
 
 # Build all
@@ -33,7 +35,7 @@ main:
 	gcc -c pipes.c -o pipes.o $(CFLAGS)
 	gcc -c evlt.c -o evlt.o $(CFLAGS)
 	gcc -c sftp.c -o sftp.o $(CFLAGS) 
-	gcc -static-libgcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o $(CFLAGS) $(LDFLAGS) 
+	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS) 
 
 # Clean only the main application
 clean:
