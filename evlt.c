@@ -406,19 +406,19 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    if (a->verbose) fprintf(stderr,"### VERBOSE : Remote file unchanged\n");
   }
   if (rc==-7) {
-   fprintf(stderr,"### VERBOSE : Remote files do not yet exist");
+   if (a->verbose) fprintf(stderr,"### VERBOSE : Remote files do not yet exist\n");
    rc=0;
   }
   if (rc==-8) {
-   fprintf(stderr,"### VERBOSE : Local files do not yet exist");
+   if (a->verbose) fprintf(stderr,"### VERBOSE : Local files do not yet exist\n");
    rc=1;
   }
   if (rc<0) {
-   fprintf(stderr,"### ERROR   : Failed to compare remote file stats");
+   fprintf(stderr,"### ERROR   : Failed to compare remote file stats\n");
    return -23;
   }
   if (rc<0) {
-   fprintf(stderr,"### ERROR   : Failed to compare remote file stats");
+   fprintf(stderr,"### ERROR   : Failed to compare remote file stats\n");
    return -23;
   }
   if (rc==1) {
