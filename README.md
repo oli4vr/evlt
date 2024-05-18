@@ -122,6 +122,8 @@ A remote vault is always completely copied over locally. When altered, the new v
 Optionally, you can also use custom TCP ports with -R username@hostname:PORT.
 If you do this, make sure your private key is also stored in /.secrets/.remotehosts/.privatekey/username@remotehost:PORT
 
+You can use remote vaults with any of the above use cases and options.
+
 ## Installation
 
 To install evlt, clone the repository and compile the source code:
