@@ -165,6 +165,28 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
        if (a->segments<1 || a->segments>32) {a->segments=8;}
       }
      break;;
+    case 'b':
+      argc--;argv++;
+      if (argc<1) {return -8;}
+      else {
+       if (argv[0][0]=='-') {return -8;}
+       a->blocksize=atoi(argv[0]);
+       switch (a->blocksize) {
+        case 1:
+        case 2:
+        case 4:
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+         break;;
+        default:
+          fprintf(stderr,"### ERROR   : Incorrect KB blocksize value. Allowed=1 2 4 8 16 32 64\n");
+          return -8;
+         break;;
+       }
+      }
+     break;;
     case 'd':
       argc--;argv++;
       if (argc<1) {return -6;}
@@ -223,6 +245,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
     case 'p':
       passcont=1;
       a->segments=1;
+      a->blocksize=1;
       hiddenout=1;
      break;;
     case 'R':
@@ -251,7 +274,8 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," del             Delete a data blob\n\n");
  fprintf(stderr," -v              Verbose mode\n");
- fprintf(stderr," -n NR           Use NR number of parallel vault file segments. Default=8\n");
+ fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8\n");
+ fprintf(stderr," -b KBsize       Blocksize in KB Default=64KB Allowed=1 2 4 8 16 32 64\n");
  fprintf(stderr," -p              Password content -> Put: enter value using a password prompt\n");
  fprintf(stderr,"                                  -> Get: Invisible copy/paste output\n");
  fprintf(stderr," -i              Invisible copy/paste output. Good for keys.\n");
@@ -281,6 +305,7 @@ int main(int argc,char ** argv) {
  size_t sz;
 
  memset(a.passkey,0,512);
+ a.blocksize=64;
  a.passkey[0]=0;
  a.sftp_host[0]=0;
  a.sftp_user[0]=0;

@@ -8,7 +8,7 @@ if [ "$1" != "" ]
 then
  VPATH=$1
 fi
-make
+make clean && make main
 rm -rf $VPATH/*.evlt
 echo
 echo "####Init"

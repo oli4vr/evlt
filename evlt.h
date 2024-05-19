@@ -1,7 +1,7 @@
 #include <bits/pthreadtypes.h>
 #define BLOCK_SIZE 65536
-//#define BLOCK_DATA (BLOCK_SIZE - 2)
-#define MAX_DATA_SIZE (BLOCK_SIZE - 68)   //BLOCK_SIZE - 16bit length - 16bit dpos - sha512
+#define META_SIZE 68 //16bit length + 16bit flags + sha512
+#define MAX_DATA_SIZE (BLOCK_SIZE - META_SIZE) 
 #define MAX_SEGMENTS 32
 #define MAX_THREADS 8
 #define BUFFER_SIZE (BLOCK_SIZE * MAX_SEGMENTS)
@@ -33,6 +33,10 @@ typedef struct _evlt_vault {
  unsigned char rwrfile[MAX_SEGMENTS][1024];
  FILE* rfp[MAX_SEGMENTS];
  FILE* wfp[MAX_SEGMENTS];
+ unsigned int blocksize;
+ unsigned int datasize;
+ unsigned int buffersize;
+ unsigned int rwsize;
 } evlt_vault;
 
 /* Vault data cryptographic access vector */
@@ -83,6 +87,7 @@ typedef struct _evlt_act {
  unsigned char sftp_host[128];
  unsigned char sftp_user[64];
  unsigned char rsakey[4200];
+ uint16_t blocksize; //In KBytes
  uint16_t sftp_port;
  uint64_t read_data_size;
  uint64_t write_data_size;

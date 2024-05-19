@@ -71,7 +71,7 @@ int explode1024(unsigned char *out,unsigned char * keystring) {
 }
 
 int evlt_init(evlt_vault *v,evlt_act *a) {
- unsigned char subname[MAX_SEGMENTS][256];
+ unsigned char subname[MAX_SEGMENTS][1024];
  unsigned char exploded[1024];
  unsigned char shaout[256];
  unsigned char hexout[256];
@@ -83,7 +83,34 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  memset(v->name,0,sizeof(v->name));
  strncpy(v->name,a->vname,32);
  v->name[31]=0;
+
+ if (strncmp(a->vname,".secrets",9)==0) {
+  a->segments=1;
+  a->blocksize=8;
+ }
+
  v->segments=a->segments;
+
+ switch (a->blocksize) {
+  case 1:
+  case 2:
+  case 4:
+  case 8:
+  case 16:
+  case 32:
+  case 64:
+    v->blocksize=a->blocksize<<10;
+   break;;
+  default:
+    v->blocksize=BLOCK_SIZE;
+ }
+
+ v->datasize=v->blocksize-META_SIZE;
+ v->buffersize=v->blocksize*v->segments;
+ v->rwsize=v->datasize*v->segments;
+ if (a->verbose) {
+  fprintf(stderr,"### VERBOSE : Blocksize=%lu Datasize=%lu Buffersize=%lu RWsize=%lu\n",v->blocksize,v->datasize,v->buffersize,v->rwsize);
+ }
 
  a->read_data_size=0;
  a->write_data_size=0;
@@ -98,21 +125,21 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  for(n=0;n<a->segments;n++) {
   //Generate vault segment filenames
   sz=64;
-  snprintf(subname[n],1024,"%s__%04lx__%04lx",v->name,a->segments,n);
+  snprintf(subname[n],1024,"$$V4ulTf1L3$$__%s__%04lx__%04lx__%04lx",v->name,a->segments,a->blocksize,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
   snprintf(v->segfile[n],1024,"%s/%s.evlt",v->path,hexout);
   //Generate write segment filenames
   sz=64;
-  snprintf(subname[n],1024,"$$Wr1T3temp$$__%s__%04lx__%04lx",v->name,a->segments,n);
+  snprintf(subname[n],1024,"$$Wr1T3temp$$__%s__%04lx__%04lx__%04lx",v->name,a->segments,a->blocksize,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
   snprintf(v->wrtfile[n],1024,"%s/%s.evlt",v->path,hexout);
   //Generate remote write segment filenames
   sz=64;
-  snprintf(subname[n],1024,"$$RemoteWr1T3$$__%s__%04lx__%04lx",v->name,a->segments,n);
+  snprintf(subname[n],1024,"$$RemoteWrT$$$__%s__%04lx__%04lx_%04lx",v->name,a->segments,a->blocksize,n);
   explode1024(exploded,subname[n]);
   SHA512(exploded,1024,shaout);
   data2hex(shaout,hexout,&sz);
@@ -125,10 +152,11 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  return 0;
 }
 
-int evlt_sha(evlt_block *b) {
+int evlt_sha_check(evlt_vault *v,unsigned char *buffer) {
  unsigned char shac[64];
- SHA512(b->data,MAX_DATA_SIZE,shac);
- return memcmp(b->sha512,shac,8)==0;
+ unsigned char *shap=buffer+v->blocksize-64;
+ SHA512(buffer,v->blocksize-64,shac);
+ return memcmp(shap,shac,64)==0;
 }
 
 void* evlt_put_thread(void *ethr) {
@@ -139,16 +167,24 @@ void* evlt_put_thread(void *ethr) {
  evlt_vault *v=t->vault;
  int rc;
  unsigned char buffer[BLOCK_SIZE];
+ unsigned char *cp=buffer;
 
- SHA512(eb->data,MAX_DATA_SIZE,eb->sha512);
- memcpy(buffer,(unsigned char *)eb,BLOCK_SIZE);
- encrypt_data(&vc->ct3,buffer,BLOCK_SIZE);
- encrypt_data(&vc->ct2,buffer,BLOCK_SIZE);
- encrypt_data(&vc->ct1,buffer,BLOCK_SIZE);
+ *(uint16_t *)cp=eb->length;
+ cp+=2;
+ *(uint16_t *)cp=eb->flags;
+ cp+=2;
+ memcpy(cp,eb->data,v->datasize);
+ cp+=v->datasize;
+ SHA512(buffer,v->blocksize-64,cp);
+
+// memcpy(buffer,(unsigned char *)eb,v->blocksize);
+ encrypt_data(&vc->ct3,buffer,v->blocksize);
+ encrypt_data(&vc->ct2,buffer,v->blocksize);
+ encrypt_data(&vc->ct1,buffer,v->blocksize);
  if (vc->passkey.key[0]!=0) 
-  encrypt_data(&vc->passkey,buffer,BLOCK_SIZE);
+  encrypt_data(&vc->passkey,buffer,v->blocksize);
 
- rc=fwrite(buffer,BLOCK_SIZE,1,t->wfp);
+ rc=fwrite(buffer,v->blocksize,1,t->wfp);
  if (rc!=1) {fprintf(stderr,"### ERROR   : Write failure to temp segment file.\n");}
 
  return NULL;
@@ -159,31 +195,29 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  evlt_block *eb;
  unsigned char n=0;
  unsigned char *cp=i.data;
- unsigned char buffer[BLOCK_SIZE];
  uint16_t flags=0;
  int len,llen,lseg,blen,rc;
- int max=MAX_DATA_SIZE*v->segments;
  pthread_t *tp;
  struct sched_param param; 
 
  if (fp==NULL) return 0;
 
- random_wipe(i.data,max);
+ random_wipe(i.data,v->rwsize);
 
- len=fread(i.data,1,max,fp);
+ len=fread(i.data,1,v->rwsize,fp);
  if (len==0) return 0;
  if (len<0) return -2;
  if (feof(fp)) {
   flags|=FLAG_STOP;
  }
- llen=len%MAX_DATA_SIZE;
- i.segments_read=(len/MAX_DATA_SIZE)+(llen!=0);
+ llen=len%v->datasize;
+ i.segments_read=(len/v->datasize)+(llen!=0);
 
 
  for(n=0;n<v->segments;n++) {
   eb=&(i.eblock[n]);
-  blen=MAX_DATA_SIZE;
-  if (len<max) {
+  blen=v->datasize;
+  if (len<v->rwsize) {
    if ((n+1)>i.segments_read) {blen=0;}
    else if ((n+1)==i.segments_read) {blen=llen;}
   }
@@ -191,10 +225,7 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
 
   eb->length=blen;
   eb->flags=flags;
-  memcpy(eb->data,cp,MAX_DATA_SIZE);
-  /*if (blen>0) {
-   memcpy(eb->data,cp,eb->length);
-  }*/
+  memcpy(eb->data,cp,v->datasize);
 
   i.thr[n].vault=v;
   i.thr[n].vector=vc;
@@ -212,7 +243,7 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
 
   vc->act->write_data_size+=blen;
 
-  cp+=MAX_DATA_SIZE;
+  cp+=v->datasize;
  }
 
  if (v->segments>=THREADS_MINSEG_W) {
@@ -229,35 +260,44 @@ void* evlt_get_thread(void *ethr) {
  evlt_block *eb=t->block;
  evlt_vector *vc=t->vector;
  evlt_vault *v=t->vault;
- unsigned char buffer[RW_SIZE];
+ unsigned char buffer[BLOCK_SIZE];
+ unsigned char ordata[BLOCK_SIZE];
+ unsigned char *cp=buffer;
  int rc;
  
  if (t->rfp==NULL) {t->nrread=0;return NULL;}
  if (feof(t->rfp)) {t->nrread=0;return NULL;}
- rc=fread(buffer,BLOCK_SIZE,1,t->rfp);
+ rc=fread(buffer,v->blocksize,1,t->rfp);
  t->nrread=rc;
  t->datalength=0;
+ memcpy(ordata,buffer,v->blocksize);
 
  if (t->nrread>0 && vc->stop==0) {
-  memcpy((unsigned char*)eb,buffer,BLOCK_SIZE);
   if (vc->passkey.key[0]!=0)
-   decrypt_data(&vc->passkey,(unsigned char*)eb,BLOCK_SIZE);
-  decrypt_data(&vc->ct1,(unsigned char*)eb,BLOCK_SIZE);
-  decrypt_data(&vc->ct2,(unsigned char*)eb,BLOCK_SIZE);
-  decrypt_data(&vc->ct3,(unsigned char*)eb,BLOCK_SIZE);
-  rc=evlt_sha(eb);
+   decrypt_data(&vc->passkey,buffer,v->blocksize);
+  decrypt_data(&vc->ct1,buffer,v->blocksize);
+  decrypt_data(&vc->ct2,buffer,v->blocksize);
+  decrypt_data(&vc->ct3,buffer,v->blocksize);
+  rc=evlt_sha_check(v,buffer);
   if (rc) {
    //SHA512 Match
+   eb->length=*(uint16_t *)cp;
+   cp+=2;
+   eb->flags=*(uint16_t *)cp;
+   cp+=2;
+   memcpy(eb->data,cp,v->datasize);
+   cp+=v->datasize;
+   memcpy(eb->sha512,cp,64);
    if (eb->flags & FLAG_STOP) {
     vc->stop=1;
    }
    if (t->outseg!=NULL) {
-    memcpy(t->outseg,eb->data,MAX_DATA_SIZE);
+    memcpy(t->outseg,eb->data,v->datasize);
     t->datalength=eb->length;
    }
   } else {
    if (t->wfp!=NULL) {
-    rc=fwrite(buffer,BLOCK_SIZE,1,t->wfp);
+    rc=fwrite(ordata,v->blocksize,1,t->wfp);
    }
   }
  }
@@ -271,7 +311,6 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  evlt_block *eb;
  unsigned char iomode=1;
  unsigned char *cp=i.data;
- unsigned char buffer[RW_SIZE];
  unsigned char sha512[64];
  uint16_t flags;
  pthread_t *tp;
@@ -285,7 +324,7 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
   i.thr[n].rfp=v->rfp[n];
   i.thr[n].wfp=v->wfp[n];
   tp=&(i.thr[n].thr);
-  i.block_segment[n]=i.data+((size_t)n*MAX_DATA_SIZE);
+  i.block_segment[n]=i.data+((size_t)n*v->datasize);
   i.thr[n].outseg=i.block_segment[n];
 
   if (v->segments>=THREADS_MINSEG_R) {
@@ -363,6 +402,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   getrsa.passkey[511]=0;
   getrsa.path[1023]=0;
   getrsa.segments=1;
+  getrsa.blocksize=8;
   getrsa.verbose=a->verbose;
   getrsa.sftp_host[0]=0;
   getrsa.sftp_user[0]=0;
@@ -390,7 +430,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    fprintf(stderr,"### VERBOSE : Actual key size in memory buffer = %d\n",rc);
   if (rc<=0) {
    fprintf(stderr,"### ERROR   : Failed to acquire RSA key for this remote connection\n");
-   fprintf(stderr,"  -> Suggested action : evlt put /%s/%s/%s/%s -n 1 -f private_keyfile\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
+   fprintf(stderr,"  -> Suggested action : evlt put /%s/%s/%s/%s -f private_keyfile\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
    fprintf(stderr,"  ->                    Make sure the public key is added to the remote authorized_keys.\n");
    return -21;
   }
