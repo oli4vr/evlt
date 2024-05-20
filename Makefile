@@ -34,7 +34,8 @@ main:
 	gcc -c pipes.c -o pipes.o $(CFLAGS)
 	gcc -c evlt.c -o evlt.o $(CFLAGS)
 	gcc -c sftp.c -o sftp.o $(CFLAGS) 
-	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS) 
+	gcc -c inifind.c -o inifind.o $(CFLAGS) 
+	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS) 
 
 # Clean only the main application
 clean:

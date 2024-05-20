@@ -16,12 +16,18 @@
 #include "pipes.h"
 #include "sftp.h"
 #include "evlt.h"
+#include "inifind.h"
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
 unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
 unsigned char passcont=0;
+
+int default_segments=8;
+int default_blocksize=64;
+unsigned char default_path[1024]={0};
+unsigned char cfgfile_path[1024]={0};
 
 unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf,size_t size) {
  strncpy(buf,getpass(prompt),80);
@@ -105,7 +111,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   argc--;argv++;
  } 
 
- a->segments=8;
+ a->segments=default_segments;
  a->verbose=0;
 
  strncpy(tmp,argv[0],1024);
@@ -162,7 +168,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       else {
        if (argv[0][0]=='-') {return -5;}
        a->segments=atoi(argv[0]);
-       if (a->segments<1 || a->segments>32) {a->segments=8;}
+       if (a->segments<1 || a->segments>32) {a->segments=default_segments;}
       }
      break;;
     case 'b':
@@ -295,17 +301,40 @@ int print_help(unsigned char *cmd) {
 int main(int argc,char ** argv) {
  evlt_vault v;
  evlt_act a;
- int optrc,rc;
+ int optrc,rc,vali;
  unsigned char fname[1024]={0};
  unsigned char tmp[1024];
+ unsigned char val[64];
  unsigned char pass1[81];
  unsigned char pass2[81];
  FILE *fpo=stdout;
  FILE *fpi=stdin;
  size_t sz;
 
+ snprintf(default_path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+
+ if (file_exists(".evlt.cfg")) {
+  strncpy(cfgfile_path,".evlt.cfg",1024);
+ } else {
+  snprintf(cfgfile_path,1024,"%s/.evlt.cfg",default_path);
+ }
+ if (file_exists(cfgfile_path)) {
+  val[0]=0;
+  findini(cfgfile_path,"evlt","DefaultSegments",val);
+  vali=atoi(val);
+  if (vali>0 && vali<33) default_segments=vali;
+  val[0]=0;
+  findini(cfgfile_path,"evlt","DefaultBlocksize",val);
+  vali=atoi(val);
+  if (vali==1 || vali==2 || vali==4 || vali==8 || vali==16 || vali==32 || vali==64) default_blocksize=vali;
+  tmp[0]=0;
+  rc=findini(cfgfile_path,"evlt","DefaultPath",tmp);
+  if (tmp[0]!=0) {tmp[1023]=0;strncpy(default_path,tmp,1024);}
+ }
+ tmp[0]=0;
+
  memset(a.passkey,0,512);
- a.blocksize=64;
+ a.blocksize=default_blocksize;
  a.passkey[0]=0;
  a.sftp_host[0]=0;
  a.sftp_user[0]=0;
@@ -375,7 +404,8 @@ int main(int argc,char ** argv) {
   strncpy(v.path,evlt_path,1024);
   strncpy(a.path,evlt_path,1024);
  } else {
-  snprintf(v.path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+//  snprintf(v.path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  strncpy(v.path,default_path,1024);
   v.path[1023]=0;
   strncpy(a.path,v.path,1024);
  }
