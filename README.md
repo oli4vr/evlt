@@ -166,6 +166,17 @@ evlt             Entropy Vault
 
 </pre>
 
+### Config file
+A config file .evlt.cfg is looked for in the local path or in ~/.evlt
+Example config file content :
+<pre>
+[evlt]
+DefaultSegments=4 
+DefaultBlocksize=1 
+DefaultPath=localvaults
+</pre>
+The above define practical defaults. For the path you can define both absolute paths and paths relative to the currect directory. The latter can be practical to use the tool on a usb thumb drive. (Place the evlt executable and config file on the thumb drive mount point)
+
 ### How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When an EOF is hit on the input file stream, a "stop" flag is set on the last blocks of each segment.
 
