@@ -83,6 +83,7 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  memset(v->name,0,sizeof(v->name));
  strncpy(v->name,a->vname,32);
  v->name[31]=0;
+ a->ieof=0;
 
  if (strncmp(a->vname,".secrets",9)==0) {
   a->segments=1;
@@ -200,11 +201,13 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  pthread_t *tp;
  struct sched_param param; 
 
- if (fp==NULL) return 0;
+ if (fp==NULL || vc->act->ieof==1) return 0;
 
  random_wipe(i.data,v->rwsize);
 
+ if (feof(fp)) {len=0; return 0;}
  len=fread(i.data,1,v->rwsize,fp);
+ if (len<v->rwsize) {vc->act->ieof=1;}
  if (len==0) return 0;
  if (len<0) return -2;
  if (feof(fp)) {
@@ -266,13 +269,16 @@ void* evlt_get_thread(void *ethr) {
  int rc;
  
  if (t->rfp==NULL) {t->nrread=0;return NULL;}
- if (feof(t->rfp)) {t->nrread=0;return NULL;}
+ if (feof(t->rfp)) {
+  t->nrread=0;
+  return NULL;
+ }
  rc=fread(buffer,v->blocksize,1,t->rfp);
  t->nrread=rc;
  t->datalength=0;
  memcpy(ordata,buffer,v->blocksize);
 
- if (t->nrread>0 && vc->stop==0) {
+ if (t->nrread>0 && vc->status==0) {
   if (vc->passkey.key[0]!=0)
    decrypt_data(&vc->passkey,buffer,v->blocksize);
   decrypt_data(&vc->ct1,buffer,v->blocksize);
@@ -289,11 +295,27 @@ void* evlt_get_thread(void *ethr) {
    cp+=v->datasize;
    memcpy(eb->sha512,cp,64);
    if (eb->flags & FLAG_STOP) {
-    vc->stop=1;
+    vc->status=1;
    }
    if (t->outseg!=NULL) {
     memcpy(t->outseg,eb->data,v->datasize);
     t->datalength=eb->length;
+   }
+   if (vc->act->action==3 && t->wfp!=NULL) {
+    if (eb->flags & FLAG_STOP) {
+     cp=buffer+2;
+     *(uint16_t *)cp&=~FLAG_STOP; // Remove stop flag
+     cp=buffer+v->blocksize-64;
+     SHA512(buffer,v->blocksize-64,cp);
+     encrypt_data(&vc->ct3,buffer,v->blocksize);
+     encrypt_data(&vc->ct2,buffer,v->blocksize);
+     encrypt_data(&vc->ct1,buffer,v->blocksize);
+     if (vc->passkey.key[0]!=0) 
+      encrypt_data(&vc->passkey,buffer,v->blocksize);
+     rc=fwrite(buffer,v->blocksize,1,t->wfp);
+    } else {
+     rc=fwrite(ordata,v->blocksize,1,t->wfp);
+    }
    }
   } else {
    if (t->wfp!=NULL) {
@@ -337,11 +359,18 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  i.datalength=0;
  for(n=0;n<v->segments;n++) {
   if (v->segments>=THREADS_MINSEG_R) {
-   while (pthread_join(i.thr[n].thr,NULL)!=0) {};
+   while (pthread_join(i.thr[n].thr,NULL)!=0) {}; //join all threads
   }
   nrread+=i.thr[n].nrread;
   i.datalength+=i.thr[n].datalength;
  }
+
+ if (vc->act->action==3) {
+  if (vc->status==1 || nrread<(v->segments)) {
+   vc->act->action=1;
+  }
+ }
+
  vc->act->read_data_size+=i.datalength;
  if (nrread<(v->segments)) {return 0;} //END OF DATA
 
@@ -380,7 +409,6 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
 
  vc.act=a;
 
- if (fp==NULL && a->action==0) {return -1;}
  if (a->action==0) {
   in=NULL;out=fp;
  } else {
@@ -490,13 +518,14 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    if (rc==-7 && a->verbose) {fprintf(stderr,"### VERBOSE : Vault files not found on remote host, start from [new] local one.\n");}
   }
  }
+ if (out==NULL && a->action==0) {sync();return -1;}
 
  init_encrypt(&vc.ct1,a->key1,1);
  init_encrypt(&vc.ct2,a->key2,1);
  init_encrypt(&vc.ct3,a->key3,1);
  if (a->passkey[0]!=0) {init_encrypt(&vc.passkey,a->passkey,3);}
  else {vc.passkey.key[0]=0;}
- vc.stop=0;
+ vc.status=0;
 
  //fopen all segment files for binary read
  for(n=0;n<v->segments;n++) {
@@ -517,7 +546,9 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  if (a->verbose) fprintf(stderr,"### VERBOSE : R/W IO ON LOCAL VAULT %s\n",a->vname);
  if (a->action==0) {rcw=0;}
  while (rcw>0 || rcr>0) {
-  if (rcw>0 && a->action>0) {rcw=evlt_iter_put(v,in,&vc);}
+  if (rcw>0 && a->action>0 && a->action!=3) {
+   rcw=evlt_iter_put(v,in,&vc);
+  }
   if (rcr>0) {rcr=evlt_iter_get(v,out,&vc);}
  }
 
@@ -598,7 +629,7 @@ size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s) {
 
 size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
  unsigned char hex512[129];
- unsigned char buffer[BLOCK_SIZE];
+ unsigned char buffer[MASTER_BLOCK_SIZE];
  unsigned char hostn[256];
  unsigned char filen[1024];
  FILE *fp;
@@ -607,8 +638,8 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
  crypttale ct;
 
  //Setup
- random_wipe(buffer,BLOCK_SIZE);
- init_encrypt(&ct,master_obscure,255);
+ random_wipe(buffer,MASTER_BLOCK_SIZE);
+ init_encrypt(&ct,master_obscure,0);
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);
@@ -616,12 +647,12 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
  //Read
  fp=fopen(filen,"rb");
  if (fp==NULL) {return 0;}
- sz=fread(buffer,1,BLOCK_SIZE,fp);
+ sz=fread(buffer,1,MASTER_BLOCK_SIZE,fp);
  fclose(fp);
- if (sz<BLOCK_SIZE) {return 0;}
+ if (sz<MASTER_BLOCK_SIZE) {return 0;}
 
  //Process
- decrypt_data(&ct,buffer,BLOCK_SIZE);
+ decrypt_data(&ct,buffer,MASTER_BLOCK_SIZE);
  dpos=*(uint16_t *)buffer;
  memcpy(m,buffer+dpos,129);
  if (m[128]!=0) {return 0;}
@@ -630,7 +661,7 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
 
 size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
  unsigned char hex512[129];
- unsigned char buffer[BLOCK_SIZE];
+ unsigned char buffer[MASTER_BLOCK_SIZE];
  unsigned char hostn[256];
  unsigned char filen[1024];
  FILE *fp;
@@ -639,24 +670,24 @@ size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
  crypttale ct;
 
  //Setup
- random_wipe(buffer,BLOCK_SIZE);
- init_encrypt(&ct,master_obscure,255);
+ random_wipe(buffer,MASTER_BLOCK_SIZE);
+ init_encrypt(&ct,master_obscure,0);
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);
 
  //Process
  sz=evlt_sha_hex(m,hex512,s);
- dpos=2+random()%(BLOCK_SIZE-132);
+ dpos=2+random()%(MASTER_BLOCK_SIZE-132);
  *(uint16_t *)buffer=dpos;
  memcpy(buffer+dpos,hex512,129);
- encrypt_data(&ct,buffer,BLOCK_SIZE);
+ encrypt_data(&ct,buffer,MASTER_BLOCK_SIZE);
 
  //Write
  fp=fopen(filen,"wb");
  if (fp==NULL) {return 0;}
- sz=fwrite(buffer,1,BLOCK_SIZE,fp);
+ sz=fwrite(buffer,1,MASTER_BLOCK_SIZE,fp);
  fclose(fp);
- if (sz<BLOCK_SIZE) {return 0;}
+ if (sz<MASTER_BLOCK_SIZE) {return 0;}
  return sz;
 }

@@ -9,6 +9,7 @@
 #define THREADS_MINSEG_W 3
 #define THREADS_MINSEG_R 2
 #define FLAG_STOP 0x8000
+#define MASTER_BLOCK_SIZE 1024
 
 #define LIBSSH_STATIC
 
@@ -45,7 +46,7 @@ typedef struct _evlt_vector {
  crypttale ct2;
  crypttale ct3;
  crypttale passkey;
- unsigned char stop;
+ unsigned char status;
  evlt_act *act;
 } evlt_vector;
 
@@ -75,7 +76,7 @@ typedef struct _evlt_iter {
 
 /* Structure for defining an action to be performed on a vault */
 typedef struct _evlt_act {
- unsigned char action; // 0=get 1=put 2=del ...
+ unsigned char action; // 0=get 1=put 2=del 3=append ...
  unsigned char vname[32];
  unsigned char key1[512];
  unsigned char key2[512];
@@ -91,6 +92,7 @@ typedef struct _evlt_act {
  uint16_t sftp_port;
  uint64_t read_data_size;
  uint64_t write_data_size;
+ unsigned char ieof;
 } evlt_act;
 
 /* Initializes a vault with the given name and number of segments */
@@ -105,3 +107,5 @@ FILE* data2stream(unsigned char* data, size_t size);
 size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s);
 size_t evlt_get_masterkey(unsigned char *path,unsigned char *m);
 size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s);
+
+long get_file_size(const char *filename);

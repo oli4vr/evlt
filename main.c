@@ -109,6 +109,9 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  } else if (strncmp(argv[0],"del",3)==0) {
   a->action=2;
   argc--;argv++;
+ } else if (strncmp(argv[0],"append",3)==0) {
+  a->action=3;
+  argc--;argv++;
  } 
 
  a->segments=default_segments;
@@ -278,6 +281,7 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n");
  fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n\n");
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
+ fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
  fprintf(stderr," del             Delete a data blob\n\n");
  fprintf(stderr," -v              Verbose mode\n");
  fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8\n");
@@ -384,6 +388,7 @@ int main(int argc,char ** argv) {
       }
      break;;
     case 1:
+    case 3:
       fpi=NULL;
       fpi=fopen(fname,"rb");
       if (fpi==NULL) {
@@ -442,6 +447,7 @@ int main(int argc,char ** argv) {
     }
    break;;
   case 1:
+  case 3:
     rc=evlt_io(&v,fpi,&a);
    break;;
   case 2:
