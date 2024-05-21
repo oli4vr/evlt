@@ -88,6 +88,9 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  if (strncmp(a->vname,".secrets",9)==0) {
   a->segments=1;
   a->blocksize=8;
+  a->sftp_host[0]=0;
+  a->sftp_user[0]=0;
+  a->sftp_port=0;
  }
 
  v->segments=a->segments;
@@ -118,7 +121,11 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
 
  //Hidden subdir in user home
  if (v->path[0]==0) {
-  snprintf(v->path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  if (a->path[0]!=0) {
+   strncpy(v->path,a->path,1024);
+  } else {
+   snprintf(v->path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+  }
   v->path[1023]=0;
  }
  mkdir(v->path,S_IRWXU);
@@ -429,12 +436,13 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   strncpy(getrsa.path,a->path,1024);
   getrsa.passkey[511]=0;
   getrsa.path[1023]=0;
+  getrsa.verbose=a->verbose;
   getrsa.segments=1;
   getrsa.blocksize=8;
-  getrsa.verbose=a->verbose;
   getrsa.sftp_host[0]=0;
   getrsa.sftp_user[0]=0;
   getrsa.sftp_port=0;
+  getrsa.ieof=0;
   if (a->verbose)
    fprintf(stderr,"### VERBOSE : Checking for RSA key in /%s/%s/%s/%s\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
   rsafp=stream2data(&pb,tmp,4200);

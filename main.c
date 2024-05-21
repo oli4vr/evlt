@@ -316,6 +316,12 @@ int main(int argc,char ** argv) {
  size_t sz;
 
  snprintf(default_path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
+ memset(a.passkey,0,512);
+ a.passkey[0]=0;
+ a.sftp_host[0]=0;
+ a.sftp_user[0]=0;
+ a.sftp_port=0;
+ a.rsakey[0]=0;
 
  if (file_exists(".evlt.cfg")) {
   strncpy(cfgfile_path,".evlt.cfg",1024);
@@ -324,26 +330,31 @@ int main(int argc,char ** argv) {
  }
  if (file_exists(cfgfile_path)) {
   val[0]=0;
-  findini(cfgfile_path,"evlt","DefaultSegments",val);
-  vali=atoi(val);
-  if (vali>0 && vali<33) default_segments=vali;
+  rc=findini(cfgfile_path,"evlt","DefaultSegments",val);
+  if (rc>0) {
+   vali=atoi(val);
+   if (vali>0 && vali<33) default_segments=vali;
+  }
   val[0]=0;
-  findini(cfgfile_path,"evlt","DefaultBlocksize",val);
-  vali=atoi(val);
-  if (vali==1 || vali==2 || vali==4 || vali==8 || vali==16 || vali==32 || vali==64) default_blocksize=vali;
+  rc=findini(cfgfile_path,"evlt","DefaultBlocksize",val);
+  if (rc>0) {
+   vali=atoi(val);
+   if (vali==1 || vali==2 || vali==4 || vali==8 || vali==16 || vali==32 || vali==64) default_blocksize=vali;
+  }
   tmp[0]=0;
   rc=findini(cfgfile_path,"evlt","DefaultPath",tmp);
-  if (tmp[0]!=0) {tmp[1023]=0;strncpy(default_path,tmp,1024);}
+  if (rc>0) {
+   if (tmp[0]!=0) {tmp[1023]=0;strncpy(default_path,tmp,1024);}
+  }
+  tmp[0]=0;
+  rc=findini(cfgfile_path,"evlt","RemoteHost",tmp);
+  if (rc>0) {
+   if (tmp[0]!=0) {tmp[1023]=0;process_rhoststring(tmp,&a);}
+  }
  }
  tmp[0]=0;
 
- memset(a.passkey,0,512);
  a.blocksize=default_blocksize;
- a.passkey[0]=0;
- a.sftp_host[0]=0;
- a.sftp_user[0]=0;
- a.sftp_port=0;
- a.rsakey[0]=0;
 
  optrc=proc_opt(&a,argc,argv);
 

@@ -1,0 +1,6 @@
+#Config File Example
+[evlt]
+DefaultSegments=1 
+DefaultBlocksize=1 
+DefaultPath=localvaults
+RemoteHost=user@remotehost
