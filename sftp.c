@@ -448,3 +448,73 @@ int sftp_compare(char *username, char *hostname, unsigned int tcpport, char *loc
 
  return result;
 }
+
+int sftp_makedir(char *username, char *hostname, unsigned int tcpport, char *remote_path, char *rsa_key) {
+ ssh_session session = ssh_new();
+ ssh_key privkey;
+ int rc;
+
+ if (session == NULL) {
+  return -1;
+ }
+
+ rc = ssh_pki_import_privkey_base64(rsa_key, NULL, NULL, NULL, &privkey);
+ if (rc != SSH_OK) {
+  fprintf(stderr, "### ERROR   : Failed to import private key: %s\n", ssh_get_error(session));
+  ssh_free(session);
+  return -2;
+ }
+
+ ssh_options_set(session, SSH_OPTIONS_HOST, hostname);
+ ssh_options_set(session, SSH_OPTIONS_USER, username);
+ ssh_options_set(session, SSH_OPTIONS_PORT, &tcpport);
+
+ rc = ssh_connect(session);
+ if (rc != SSH_OK) {
+  ssh_free(session);
+  ssh_key_free(privkey);
+  return -3;
+ }
+
+ rc = ssh_userauth_publickey(session, NULL, privkey);
+ if (rc != SSH_AUTH_SUCCESS) {
+  ssh_disconnect(session);
+  ssh_free(session);
+  ssh_key_free(privkey);
+  return -4;
+ }
+
+ sftp_session sftp = sftp_new(session);
+ if (sftp == NULL) {
+  ssh_disconnect(session);
+  ssh_free(session);
+  ssh_key_free(privkey);
+  return -5;
+ }
+
+ rc = sftp_init(sftp);
+ if (rc != SSH_OK) {
+  sftp_free(sftp);
+  ssh_disconnect(session);
+  ssh_free(session);
+  ssh_key_free(privkey);
+  return -6;
+ }
+
+ rc = sftp_mkdir(sftp, remote_path, S_IRWXU);
+ if (rc != SSH_OK) {
+  //fprintf(stderr, "### ERROR   : Failed to create directory: %s\n", ssh_get_error(session));
+  sftp_free(sftp);
+  ssh_disconnect(session);
+  ssh_free(session);
+  ssh_key_free(privkey);
+  return -7;
+ }
+
+ sftp_free(sftp);
+ ssh_disconnect(session);
+ ssh_free(session);
+ ssh_key_free(privkey);
+
+ return 0;
+}

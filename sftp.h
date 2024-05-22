@@ -23,3 +23,5 @@ void* sftp_thread(void *data);
 int ssh_cmd(char *username, char *hostname, int port, char *rsa_key, char *command);
 
 int sftp_compare(char *username, char *hostname, unsigned int tcpport, char *local_path, char *remote_path, char *rsa_key);
+
+int sftp_makedir(char *username, char *hostname, unsigned int tcpport, char *remote_path, char *rsa_key);

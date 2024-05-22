@@ -470,7 +470,14 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    fprintf(stderr,"  ->                    Make sure the public key is added to the remote authorized_keys.\n");
    return -21;
   }
-  ssh_cmd(a->sftp_user,a->sftp_host,a->sftp_port,a->rsakey,"echo mkdir ~/.evlt | /bin/bash\n");
+  rc=-99;
+  for(rn=0;rn<SFTP_RETRY && rc<0 && rc!=-7;rn++) {
+   rc=sftp_makedir(a->sftp_user,a->sftp_host,a->sftp_port,".evlt",a->rsakey);
+  }
+  if (rc!=0 && rc!=-7) {
+   fprintf(stderr,"### WARNING : Could not create remote dir\n");
+  }
+  //ssh_cmd(a->sftp_user,a->sftp_host,a->sftp_port,a->rsakey,"echo mkdir ~/.evlt | /bin/bash\n");
 
   if (a->verbose) fprintf(stderr,"### VERBOSE : Check whether remote files have changed\n");
   rc=-99;
