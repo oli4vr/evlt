@@ -5,7 +5,7 @@ MAINDIR := $(CURDIR)
 INSTALL_DIR := $(MAINDIR)/inst
 LIBSSH_DIR := $(MAINDIR)/libssh
 OPENSSL_REPO := https://github.com/openssl/openssl.git
-LIBSSH_REPO := https://git.libssh.org/projects/libssh.git
+LIBSSH_PKG := https://www.libssh.org/files/0.10/libssh-0.10.6.tar.xz
 CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include
 LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread
 STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a
@@ -23,9 +23,13 @@ ssl:
 # Build libssh and make it static
 ssh:
 	rm -rf $(LIBSSH_DIR)
-	git clone $(LIBSSH_REPO) $(LIBSSH_DIR)
+	wget --no-check-certificate $(LIBSSH_PKG)
+	xz -cd libssh-*.tar.xz | tar -xvf -
+	rm -rf libssh-*.tar.xz
+	mv libssh-* libssh
 	mkdir -p $(LIBSSH_DIR)/build
-	cd $(LIBSSH_DIR)/build && cmake -DWITH_GSSAPI=OFF -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a;$(INSTALL_DIR)/lib64" .. && make $(JOBS) && make install
+	cd $(LIBSSH_DIR)/build && cmake -DWITH_NACL=OFF -DWITH_GSSAPI=OFF -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) -DWITH_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLIBSSH_STATIC=ON -DWITH_ZLIB=OFF -DOPENSSL_ROOT_DIR=$(INSTALL_DIR) -DOPENSSL_LIBRARIES="$(INSTALL_DIR)/lib64/libssl.a;$(INSTALL_DIR)/lib64/libcrypto.a;$(INSTALL_DIR)/lib64" .. && make $(JOBS) && make install
+
 
 # Build the main application
 main:
