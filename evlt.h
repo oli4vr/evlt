@@ -1,3 +1,5 @@
+/* evlt.h
+ */
 #include <bits/pthreadtypes.h>
 #define BLOCK_SIZE 65536
 #define META_SIZE 68 //16bit length + 16bit flags + sha512
@@ -66,8 +68,9 @@ typedef struct _evlt_thread {
 
 /* Structure for single iteration of a get or put stream. */
 typedef struct _evlt_iter {
- unsigned char data[BUFFER_SIZE];
- unsigned char* block_segment[MAX_SEGMENTS];
+// unsigned char data[RW_SIZE];
+ unsigned char *data;
+ unsigned char *block_segment[MAX_SEGMENTS];
  unsigned char segments_read;
  evlt_block eblock[MAX_SEGMENTS];
  evlt_thread thr[MAX_SEGMENTS];
@@ -93,10 +96,13 @@ typedef struct _evlt_act {
  uint64_t read_data_size;
  uint64_t write_data_size;
  unsigned char ieof;
+ unsigned char *restdata;
+ size_t restlength;
 } evlt_act;
 
 /* Initializes a vault with the given name and number of segments */
 int evlt_init(evlt_vault *v,evlt_act *a);
+int evlt_exit(evlt_vault *v,evlt_act *a);
 
 /* Handles input/output operations for a vault */
 int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a);

@@ -1,3 +1,5 @@
+/* sftp.h
+ */
 // Get a remote file using ssh and a base64 rsa_key stored in memory
 int get_sftp(char *username, char *hostname, unsigned int tcpport, char *remote_path, char *local_path, char *rsa_key);
 // Put a file on a remote host using ssh and a base64 rsa_key stored in memory

@@ -1,3 +1,5 @@
+/* hexenc.h
+ */
 //Convert binary data to an ascii hexadecimal string
 unsigned char data2hex(unsigned char *src,unsigned char *dest, size_t *len);
 

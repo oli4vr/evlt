@@ -1,3 +1,5 @@
+/* main.c
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -465,6 +467,7 @@ int main(int argc,char ** argv) {
     rc=evlt_io(&v,NULL,&a);
    break;
  }
+ evlt_exit(&v,&a);
  if (a.verbose) {
   fprintf(stderr,"### VERBOSE : IO RC=%d\n### VERBOSE : Original_Read_Data_Size=%llu\n### VERBOSE : New_Write_Data_size=%llu\n",rc,a.read_data_size,a.write_data_size);
  }

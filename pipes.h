@@ -1,3 +1,5 @@
+/* pipes.h
+ */
 typedef struct pipe_buffer{
  int fd;
  unsigned char *data;

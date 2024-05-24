@@ -1,3 +1,5 @@
+/* evlt.c
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +70,10 @@ int explode1024(unsigned char *out,unsigned char * keystring) {
  }
  sha_key(explode,out);
  return 0;
+}
+
+int evlt_exit(evlt_vault *v,evlt_act *a) {
+  free(a->restdata);
 }
 
 int evlt_init(evlt_vault *v,evlt_act *a) {
@@ -157,6 +163,10 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
   if (fp!=NULL) {fclose(fp);}
   else {fprintf(stderr,"### ERROR   : Can't open segment file for write.\n");return -1;}
  }
+ a->restdata=malloc(sizeof(unsigned char) * v->rwsize);
+ if (a->restdata==NULL) {fprintf(stderr,"### Error   : Failed to allocate buffer memory!\n"); exit(-35);}
+ a->restlength=0;
+ a->restdata[0]=0;
  return 0;
 }
 
@@ -174,8 +184,15 @@ void* evlt_put_thread(void *ethr) {
  evlt_vector *vc=t->vector;
  evlt_vault *v=t->vault;
  int rc;
- unsigned char buffer[BLOCK_SIZE];
- unsigned char *cp=buffer;
+ //unsigned char buffer[BLOCK_SIZE];
+ unsigned char *buffer=NULL;
+ unsigned char *cp;
+
+ while (buffer==NULL) {
+  buffer=(unsigned char *)malloc(v->blocksize);
+ }
+ cp=buffer;
+
 
  *(uint16_t *)cp=eb->length;
  cp+=2;
@@ -195,6 +212,7 @@ void* evlt_put_thread(void *ethr) {
  rc=fwrite(buffer,v->blocksize,1,t->wfp);
  if (rc!=1) {fprintf(stderr,"### ERROR   : Write failure to temp segment file.\n");}
 
+ free(buffer);
  return NULL;
 }
 
@@ -202,21 +220,42 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  evlt_iter i;
  evlt_block *eb;
  unsigned char n=0;
- unsigned char *cp=i.data;
+ unsigned char *cp;
  uint16_t flags=0;
  int len,llen,lseg,blen,rc;
  pthread_t *tp;
  struct sched_param param; 
 
+ //i.data=vc->act->restdata;
  if (fp==NULL || vc->act->ieof==1) return 0;
+
+ i.data=NULL;
+ while (i.data==NULL) {
+  i.data=(unsigned char *)malloc(v->rwsize);
+ }
 
  random_wipe(i.data,v->rwsize);
 
- if (feof(fp)) {len=0; return 0;}
- len=fread(i.data,1,v->rwsize,fp);
+
+ len=0;
+ cp=i.data;
+ if (vc->act->restlength>0) {
+  fprintf(stderr,"### VERBOSE : DATA REMAINDER FOUND, APPENDING TO IT\n");
+  memcpy(i.data,vc->act->restdata,vc->act->restlength);
+  cp+=vc->act->restlength;
+  len=vc->act->restlength;
+  vc->act->restlength=0;
+ }
+
+ //if (feof(fp)) {len=0; return 0;}
+ rc=0;
+ if (feof(fp)==0)
+  rc=fread(cp,1,v->rwsize-len,fp);
+ if (rc>0) len+=rc;
+ cp=i.data;
  if (len<v->rwsize) {vc->act->ieof=1;}
- if (len==0) return 0;
- if (len<0) return -2;
+ if (len==0) {free(i.data);return 0;}
+ if (rc<0) {free(i.data);return -2;}
  if (feof(fp)) {
   flags|=FLAG_STOP;
  }
@@ -261,6 +300,7 @@ int evlt_iter_put(evlt_vault *v, FILE *fp, evlt_vector *vc) {
    while (pthread_join(i.thr[n].thr,NULL)!=0) {};
   }
  }
+ free(i.data);
  return len;
 }
 
@@ -270,16 +310,26 @@ void* evlt_get_thread(void *ethr) {
  evlt_block *eb=t->block;
  evlt_vector *vc=t->vector;
  evlt_vault *v=t->vault;
- unsigned char buffer[BLOCK_SIZE];
- unsigned char ordata[BLOCK_SIZE];
- unsigned char *cp=buffer;
+// unsigned char buffer[BLOCK_SIZE];
+// unsigned char ordata[BLOCK_SIZE];
+ unsigned char *buffer,*ordata;
+ unsigned char *cp;
  int rc;
- 
+
  if (t->rfp==NULL) {t->nrread=0;return NULL;}
  if (feof(t->rfp)) {
   t->nrread=0;
   return NULL;
  }
+
+ while (buffer==NULL) {
+  buffer=malloc(v->blocksize);
+ }
+ while (ordata==NULL) {
+  ordata=malloc(v->blocksize);
+ }
+
+ cp=buffer;
  rc=fread(buffer,v->blocksize,1,t->rfp);
  t->nrread=rc;
  t->datalength=0;
@@ -319,7 +369,7 @@ void* evlt_get_thread(void *ethr) {
      encrypt_data(&vc->ct1,buffer,v->blocksize);
      if (vc->passkey.key[0]!=0) 
       encrypt_data(&vc->passkey,buffer,v->blocksize);
-     rc=fwrite(buffer,v->blocksize,1,t->wfp);
+     //rc=fwrite(buffer,v->blocksize,1,t->wfp);
     } else {
      rc=fwrite(ordata,v->blocksize,1,t->wfp);
     }
@@ -331,6 +381,8 @@ void* evlt_get_thread(void *ethr) {
   }
  }
 
+ free(ordata);
+ free(buffer);
  return NULL;
 }
 
@@ -344,6 +396,11 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  uint16_t flags;
  pthread_t *tp;
  int nrread;
+ 
+ i.data=NULL;
+ while (i.data==NULL) {
+  i.data=(unsigned char *)malloc(v->rwsize);
+ }
 
  for(n=0;n<v->segments;n++) {
   i.thr[n].vault=v;
@@ -374,19 +431,22 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
 
  if (vc->act->action==3) {
   if (vc->status==1 || nrread<(v->segments)) {
+   memcpy(vc->act->restdata,i.data,i.datalength);
+   vc->act->restlength=i.datalength;
    vc->act->action=1;
   }
  }
 
  vc->act->read_data_size+=i.datalength;
- if (nrread<(v->segments)) {return 0;} //END OF DATA
+ if (nrread<(v->segments)) {free(i.data);return 0;} //END OF DATA
 
- if (i.datalength<1) {return 1;} //NO MATCH
+ if (i.datalength<1) {free(i.data);return 1;} //NO MATCH
 
  if (v->wfp[0]==NULL && fp!=NULL) {
   rc=fwrite(i.data,1,i.datalength,fp);
  }
 
+ free(i.data);
  if (i.eblock[0].flags & FLAG_STOP) {
   return 0; //END OF DATA
  }
@@ -421,6 +481,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  } else {
   in=fp;out=NULL;
  }
+
 
  // Remote vault code
  if (a->sftp_port!=0 && a->sftp_host[0]!=0 && a->sftp_user[0]!=0) {
@@ -460,6 +521,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   fclose(rsafp);
   usleep(100000);
   strncpy(a->rsakey,tmp,4200);
+  evlt_exit(&vltrsa,&getrsa);
   a->rsakey[4199]=0;
   rc=strnlen(a->rsakey,4200);
   if (a->verbose)
@@ -565,6 +627,10 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    rcw=evlt_iter_put(v,in,&vc);
   }
   if (rcr>0) {rcr=evlt_iter_get(v,out,&vc);}
+ }
+ if (a->restlength>0 && a->action > 0) {
+  FILE * tfp = data2stream(a->restdata,a->restlength);
+  evlt_iter_put(v,tfp,&vc);
  }
 
  //fclose all segment files
