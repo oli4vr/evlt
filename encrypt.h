@@ -9,6 +9,7 @@
 #define KEY_DIFF (KEY_SIZE - 1)
 #define KEY_NRSHA (KEY_SIZE >> 6)
 
+// Internal crypto struct
 typedef struct _crypttale {
  unsigned char key[KEY_SIZE];
  unsigned char ttable[256][256];

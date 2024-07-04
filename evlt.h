@@ -12,6 +12,12 @@
 #define THREADS_MINSEG_R 2
 #define FLAG_STOP 0x8000
 #define MASTER_BLOCK_SIZE 1024
+#define MAX_INDEX_SIZE (RW_SIZE * 4)
+#define VAULTNAME_SIZE 512
+#define VAULTKEY_SIZE 512
+#define KPATH_SIZE (VAULTNAME_SIZE + VAULTKEY_SIZE * 3)
+#define RSAKEY_SIZE 4200
+#define MAX_INDEX_PER_VAULT 65536
 
 #define LIBSSH_STATIC
 
@@ -25,10 +31,11 @@ typedef struct _evlt_block {
 
 typedef struct _evlt_iter evlt_iter;
 typedef struct _evlt_act evlt_act;
+typedef struct _evlt_index_item evlt_index_item;
 
 /* Structure for managing vault files and their segments */
 typedef struct _evlt_vault {
- unsigned char name[32];
+ unsigned char name[VAULTNAME_SIZE];
  unsigned char path[1024];
  unsigned char segments;
  unsigned char segfile[MAX_SEGMENTS][1024];
@@ -77,27 +84,39 @@ typedef struct _evlt_iter {
  size_t datalength;
 } evlt_iter;
 
+typedef struct _evlt_index_item {
+ unsigned char name[256];
+ unsigned char type; // 0=file 1=dir ...
+ uint64_t flags;
+} evlt_index_item;
+
 /* Structure for defining an action to be performed on a vault */
 typedef struct _evlt_act {
- unsigned char action; // 0=get 1=put 2=del 3=append ...
- unsigned char vname[32];
- unsigned char key1[512];
- unsigned char key2[512];
- unsigned char key3[512];
- unsigned char passkey[512];
+ unsigned char action; // 0=get 1=put 2=del 3=append 4=ls 99=delrec ...
+ unsigned char kpath[KPATH_SIZE];
+ unsigned char vname[VAULTNAME_SIZE];
+ unsigned char key1[VAULTKEY_SIZE];
+ unsigned char key2[VAULTKEY_SIZE];
+ unsigned char key3[VAULTKEY_SIZE];
+ unsigned char passkey[VAULTKEY_SIZE];
  unsigned char segments;
  unsigned char verbose;
  unsigned char path[1024];
  unsigned char sftp_host[128];
  unsigned char sftp_user[64];
- unsigned char rsakey[4200];
+ unsigned char rsakey[RSAKEY_SIZE];
  uint16_t blocksize; //In KBytes
  uint16_t sftp_port;
  uint64_t read_data_size;
  uint64_t write_data_size;
- unsigned char ieof;
+ unsigned char ieof; //EOF
  unsigned char *restdata;
  size_t restlength;
+ unsigned char idxit;
+ unsigned char change_hash[64];
+ unsigned char *change_data;
+ size_t change_size;
+ unsigned char encrypt_file;
 } evlt_act;
 
 /* Initializes a vault with the given name and number of segments */
@@ -114,4 +133,10 @@ size_t evlt_sha_hex(unsigned char *src, unsigned char *tgt, size_t s);
 size_t evlt_get_masterkey(unsigned char *path,unsigned char *m);
 size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s);
 
+int evlt_index_update(evlt_vault *v,evlt_act *a);
+
 long get_file_size(const char *filename);
+
+void evlt_kpath2keys(evlt_act *a);
+
+int64_t getusecs();

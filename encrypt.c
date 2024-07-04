@@ -17,6 +17,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <openssl/sha.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "encrypt.h"
 
 void sha_key(unsigned char * src,unsigned char * tgt) {

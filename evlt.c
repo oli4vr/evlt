@@ -22,16 +22,29 @@
 #define SFTP_RETRY 3
 
 unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
+unsigned char zerostr[1]={0};
+
+// Return timestamp in microseconds
+int64_t getusecs() {
+ int64_t tmp;
+ int rc;
+ struct timeval tv;
+ gettimeofday(&tv,NULL);
+ tmp=tv.tv_sec;
+ tmp*=1000000;
+ tmp+=tv.tv_usec;
+ return tmp;
+}
 
 long get_file_size(const char *filename) {
-    FILE *file = fopen(filename, "rb");
-    if (file == NULL) {
-        return -1;
-    }
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    fclose(file);
-    return size;
+ FILE *file = fopen(filename, "rb");
+ if (file == NULL) {
+  return -1;
+ }
+ fseek(file, 0, SEEK_END);
+ long size = ftell(file);
+ fclose(file);
+ return size;
 }
 
 //Wipe a buffer by replacing it's content with random bytes
@@ -87,7 +100,7 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
  size_t sz;
  int n;
  memset(v->name,0,sizeof(v->name));
- strncpy(v->name,a->vname,32);
+ strncpy(v->name,a->vname,VAULTNAME_SIZE);
  v->name[31]=0;
  a->ieof=0;
 
@@ -372,6 +385,7 @@ void* evlt_get_thread(void *ethr) {
      //rc=fwrite(buffer,v->blocksize,1,t->wfp);
     } else {
      rc=fwrite(ordata,v->blocksize,1,t->wfp);
+     vc->act->write_data_size+=v->datasize;
     }
    }
   } else {
@@ -454,6 +468,182 @@ int evlt_iter_get(evlt_vault *v, FILE *fp, evlt_vector *vc) {
  return 2; //MATCH
 }
 
+unsigned char * path_string_up(unsigned char *str) {
+ if (str == NULL || *str == '\0') return zerostr;
+
+ unsigned char *last_slash = strrchr(str, '/');
+ if (last_slash != NULL) {
+  *last_slash = '\0';
+  return last_slash+1;
+ }
+ return zerostr;
+}
+
+void remove_line_with_string(unsigned char *str, unsigned char *target) {
+ unsigned char *start = str;
+ unsigned char *end;
+ unsigned char *write_ptr = str;
+ size_t target_len = strlen(target);
+
+ while ((end = (unsigned char *)strchr((char *)start, '\n')) != NULL) {
+  size_t line_len = end - start + 1;
+  if (strncmp((char *)start, (char *)target, target_len) != 0 || (start[target_len] != '\n' && start[target_len] != '\0')) {
+   memmove(write_ptr, start, line_len);
+   write_ptr += line_len;
+  }
+  start = end + 1;
+ }
+
+ // Handle the last line if it doesn't end with a newline
+ if (*start != '\0' && (strncmp((char *)start, (char *)target, target_len) != 0 || (start[target_len] != '\0'))) {
+  strcpy((char *)write_ptr, (char *)start);
+ } else {
+  *write_ptr = '\0';
+ }
+}
+
+int add_line_to_string(unsigned char *str, unsigned char *add) {
+ size_t l1 = strnlen((char *)str, MAX_INDEX_SIZE);
+ size_t l2 = strnlen((char *)add, 256);
+ unsigned char *cp = str + l1;
+ if (l1 + l2 > MAX_INDEX_SIZE) return -1;
+ strncpy((char *)cp, (char *)add, 256);
+ cp += l2;
+ if (*(cp - 1) != '\n') {
+  *cp = '\n';
+  cp++;
+ }
+ *cp = '\0';
+ return 0;
+}
+
+int evlt_index_update(evlt_vault *v,evlt_act *a) {
+ evlt_vault vi;
+ if (a==NULL || v==NULL) {return -99;}
+ if (a->idxit==0) {return 0;}
+
+ int n;
+ unsigned char *ibuff;
+ unsigned char *fname=zerostr;
+ unsigned char tfname[256]={0};
+ unsigned char vname[VAULTNAME_SIZE];
+ uint64_t tstamp=getusecs();
+// evlt_index_item it;
+ FILE * fp;
+ int rc;
+
+// memcpy(&vi,v,sizeof(evlt_vault));
+
+
+ ibuff=malloc(MAX_INDEX_SIZE);
+ memset(ibuff,0,MAX_INDEX_SIZE);
+ if (ibuff==NULL) {
+  fprintf(stderr,"### ERROR   : Failed to allocate memory for index buffer\n");
+  return -1;
+ }
+ evlt_act *b;
+ b=malloc(sizeof(evlt_act));
+ if (b==NULL) {
+  free(ibuff);
+  fprintf(stderr,"### ERROR   : Failed to allocate memory for evlt_act\n");
+  return -1;
+ }
+
+ memcpy(b,a,sizeof(evlt_act));
+
+ if (b->kpath[0]!='/') {
+  b->kpath[0]='/';
+  strncpy(b->kpath+1,a->kpath,KPATH_SIZE);
+  b->kpath[KPATH_SIZE-1]=0;
+ }
+
+
+ if ((b->kpath[0]=='/' && b->kpath[1]=='\0') || b->kpath[0]=='\0') {
+  free(ibuff);
+  free(b);
+  return -2;
+ }
+
+ fname=path_string_up(b->kpath);
+ if (fname[0]=='\0') {
+  free(ibuff);
+  free(b);
+  return -3;
+ }
+ evlt_kpath2keys(b);
+
+ strncpy(vname,b->vname,VAULTNAME_SIZE);
+ vname[VAULTNAME_SIZE-1]=0;
+ sprintf(b->vname,"$$INDEX$$__%s",vname);
+
+ b->action=0;
+ b->idxit=0;
+ b->ieof=0;
+ b->write_data_size=0;
+ b->read_data_size=0;
+
+ snprintf(tfname,256,"/tmp/%llx",(unsigned long long)tstamp);
+
+ fp=fopen(tfname,"wb");
+ if (fp==NULL) {
+  free(ibuff);
+  free(b);
+  return -4;
+ }
+ if (a->verbose) {
+  fprintf(stderr,"### VERBOSE : IDX UPDATE Action=%d\n### VERBOSE : Vault=%s\n### VERBOSE : Segments=%d\n### VERBOSE : Key1=%s\n### VERBOSE : Key2=%s\n### VERBOSE : Key3=%s\n",b->action,b->vname,b->segments,b->key1,b->key2,b->key3);
+  fprintf(stderr,"### VERBOSE : KPATH=%s\n",b->kpath);
+ }
+ evlt_init(&vi,b);
+ rc=evlt_io(&vi,fp,b);
+ evlt_exit(&vi,b);
+ fclose(fp);
+ fp=fopen(tfname,"rb");
+ if (fp==NULL) {
+  free(ibuff);
+  free(a);
+  return -5;
+ }
+ fread(ibuff,1,MAX_INDEX_SIZE,fp);
+ fclose(fp);
+
+ remove_line_with_string(ibuff,fname);
+ if (a->action!=2) add_line_to_string(ibuff,fname);
+
+ fp=fopen(tfname,"wb");
+ if (fp==NULL) {
+  free(ibuff);
+  free(b);
+  return -6;
+ }
+ fwrite(ibuff,1,strnlen(ibuff,MAX_INDEX_SIZE),fp);
+ fclose(fp);
+ fp=fopen(tfname,"rb");
+ if (fp==NULL) {
+  free(ibuff);
+  free(b);
+  return -7;
+ }
+ b->action=1;
+ b->idxit=0;
+ b->ieof=0;
+ b->write_data_size=0;
+ b->read_data_size=0;
+ if (a->verbose) {
+  fprintf(stderr,"### VERBOSE : IDX UPDATE Action=%d\n### VERBOSE : Vault=%s\n### VERBOSE : Segments=%d\n### VERBOSE : Key1=%s\n### VERBOSE : Key2=%s\n### VERBOSE : Key3=%s\n",b->action,b->vname,b->segments,b->key1,b->key2,b->key3);
+  fprintf(stderr,"### VERBOSE : KPATH=%s\n",b->kpath);
+ }
+ evlt_init(&vi,b);
+ rc=evlt_io(&vi,fp,b);
+ evlt_exit(&vi,b);
+ fclose(fp);
+
+ remove(tfname);
+
+ free(ibuff);
+ free(b);
+ return 0;
+}
 
 int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  unsigned char buffer[BUFFER_SIZE];
@@ -467,8 +657,8 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  evlt_block bld[MAX_SEGMENTS];
  evlt_block * bd;
  evlt_vector vc;
- evlt_act getrsa;
- evlt_vault vltrsa;
+ evlt_act subact;
+ evlt_vault subvlt;
  FILE *in, *out, *rsafp;
  pipe_buffer pb;
  sftp_thread_data sftp_td[MAX_SEGMENTS];
@@ -482,53 +672,52 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   in=fp;out=NULL;
  }
 
-
  // Remote vault code
  if (a->sftp_port!=0 && a->sftp_host[0]!=0 && a->sftp_user[0]!=0) {
-  getrsa.action=0;
-  strncpy(getrsa.vname,".secrets",16);
-  strncpy(getrsa.key1,".remotehosts",16);
-  strncpy(getrsa.key2,".privatekey",16);
+  subact.action=0;
+  strncpy(subact.vname,".secrets",16);
+  strncpy(subact.key1,".remotehosts",16);
+  strncpy(subact.key2,".privatekey",16);
   if (a->sftp_port!=22)
-   sprintf(getrsa.key3,"%s@%s:%d",a->sftp_user,a->sftp_host,a->sftp_port);
+   sprintf(subact.key3,"%s@%s:%d",a->sftp_user,a->sftp_host,a->sftp_port);
   else
-   sprintf(getrsa.key3,"%s@%s",a->sftp_user,a->sftp_host);
-  strncpy(getrsa.passkey,a->passkey,512);
-  strncpy(getrsa.path,a->path,1024);
-  getrsa.passkey[511]=0;
-  getrsa.path[1023]=0;
-  getrsa.verbose=a->verbose;
-  getrsa.segments=1;
-  getrsa.blocksize=8;
-  getrsa.sftp_host[0]=0;
-  getrsa.sftp_user[0]=0;
-  getrsa.sftp_port=0;
-  getrsa.ieof=0;
+   sprintf(subact.key3,"%s@%s",a->sftp_user,a->sftp_host);
+  strncpy(subact.passkey,a->passkey,VAULTKEY_SIZE);
+  strncpy(subact.path,a->path,1024);
+  subact.passkey[511]=0;
+  subact.path[1023]=0;
+  subact.verbose=a->verbose;
+  subact.segments=1;
+  subact.blocksize=8;
+  subact.sftp_host[0]=0;
+  subact.sftp_user[0]=0;
+  subact.sftp_port=0;
+  subact.ieof=0;
   if (a->verbose)
-   fprintf(stderr,"### VERBOSE : Checking for RSA key in /%s/%s/%s/%s\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
-  rsafp=stream2data(&pb,tmp,4200);
+   fprintf(stderr,"### VERBOSE : Checking for RSA key in /%s/%s/%s/%s\n",subact.vname,subact.key1,subact.key2,subact.key3);
+  rsafp=stream2data(&pb,tmp,RSAKEY_SIZE);
   usleep(1000);
   if (rsafp==NULL) {
    return -19;
   }
-  rc=evlt_init(&vltrsa,&getrsa);
+  rc=evlt_init(&subvlt,&subact);
   if (rc!=0) {fclose(rsafp); return -20;}
-  rc=evlt_io(&vltrsa,rsafp,&getrsa);
+  rc=evlt_io(&subvlt,rsafp,&subact);
   if (a->verbose)
-   fprintf(stderr,"### VERBOSE : Get rsa key data RC=%d size=%llu\n",rc,getrsa.read_data_size);
+   fprintf(stderr,"### VERBOSE : Get rsa key data RC=%d size=%llu\n",rc,subact.read_data_size);
   fwrite("\0",1,2,rsafp);
   fflush(rsafp);
   fclose(rsafp);
   usleep(100000);
-  strncpy(a->rsakey,tmp,4200);
-  evlt_exit(&vltrsa,&getrsa);
+  strncpy(a->rsakey,tmp,RSAKEY_SIZE);
+  evlt_exit(&subvlt,&subact);
   a->rsakey[4199]=0;
-  rc=strnlen(a->rsakey,4200);
+  rc=strnlen(a->rsakey,RSAKEY_SIZE);
   if (a->verbose)
    fprintf(stderr,"### VERBOSE : Actual key size in memory buffer = %d\n",rc);
   if (rc<=0) {
    fprintf(stderr,"### ERROR   : Failed to acquire RSA key for this remote connection\n");
-   fprintf(stderr,"  -> Suggested action : evlt put /%s/%s/%s/%s -f private_keyfile\n",getrsa.vname,getrsa.key1,getrsa.key2,getrsa.key3);
+   fprintf(stderr,"  -> Suggested action : evlt put /%s/%s/%s/%s -f private_keyfile\n",subact.vname,subact.key1,subact.key2,subact.key3);
    fprintf(stderr,"  ->                    Make sure the public key is added to the remote authorized_keys.\n");
    return -21;
   }
@@ -646,8 +835,9 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
     rename(v->wrtfile[n],v->segfile[n]);
    }
   }
-
   sync();
+  //Index update
+  evlt_index_update(v,a);
  }
 
  //Remove empty segment files
@@ -771,4 +961,57 @@ size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
  fclose(fp);
  if (sz<MASTER_BLOCK_SIZE) {return 0;}
  return sz;
+}
+
+void evlt_kpath2keys(evlt_act *a) {
+ unsigned char tmp[KPATH_SIZE];
+ unsigned char *cp, *sp;
+ int n,l,kp=0;
+ strncpy(tmp,a->kpath,KPATH_SIZE);
+ tmp[1023]=0;
+ l=strnlen(tmp,KPATH_SIZE)+1;
+ cp=tmp;
+ if (*cp=='/') {cp++;}
+ sp=cp;
+ a->key1[0]=0;
+ a->key2[0]=0;
+ a->key3[0]=0;
+ for(n=0;n<l && kp<4;n++) {
+  if (*cp=='/' || *cp==0) {
+   switch (kp) {
+    case 0:
+      *cp=0;
+      strncpy(a->vname,sp,VAULTNAME_SIZE);
+      a->vname[31]=0;
+     break;;
+    case 1:
+      *cp=0;
+      strncpy(a->key1,sp,VAULTKEY_SIZE);
+      a->key1[511]=0;
+     break;;
+    case 2:
+      *cp=0;
+      strncpy(a->key2,sp,VAULTKEY_SIZE);
+      a->key2[511]=0;
+     break;;
+    case 3:
+      strncpy(a->key3,sp,VAULTKEY_SIZE);
+      a->key3[511]=0;
+     break;;
+   }
+   kp++;
+   sp=cp+1;
+  }
+  cp++;
+ }
+ if (a->key1[0]==0) evlt_sha_hex(a->vname,a->key1,strnlen(a->vname,32));
+ if (a->key2[0]==0) evlt_sha_hex(a->key1,a->key2,strnlen(a->key1,32));
+ if (a->key3[0]==0) evlt_sha_hex(a->key2,a->key3,strnlen(a->key2,32));
+
+ if (a->action==4) {
+  strncpy(tmp,a->vname,VAULTNAME_SIZE);
+  tmp[VAULTNAME_SIZE-1]=0;
+  sprintf(a->vname,"$$INDEX$$__%s",tmp);
+  a->action=0;
+ }
 }

@@ -88,13 +88,15 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  char *opt;
  char optc;
  unsigned char tmp[1024]={0};
- unsigned char passchk[512]={0};
+ unsigned char passchk[VAULTKEY_SIZE]={0};
  unsigned char *cp,*sp;
  unsigned char kp=0;
  unsigned char *sp0=NULL,*sp1=NULL,*sp2=NULL,*sp3=NULL;
  unsigned char manpass=0;
  unsigned char hexkey[129];
  argc--;argv++;
+
+ a->encrypt_file=0;
 
  if (argc<2) {//Bad nr arguments 
   return -1;
@@ -114,53 +116,18 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  } else if (strncmp(argv[0],"append",3)==0) {
   a->action=3;
   argc--;argv++;
- } 
+ } else if (strncmp(argv[0],"ls",3)==0) {
+  a->action=4;
+  argc--;argv++;
+ }
 
  a->segments=default_segments;
  a->verbose=0;
 
- strncpy(tmp,argv[0],1024);
- tmp[1023]=0;
- l=strnlen(tmp,1024)+1;
- cp=tmp;
- if (*cp=='/') {cp++;}
- sp=cp;
- a->key1[0]=0;
- a->key2[0]=0;
- a->key3[0]=0;
- for(n=0;n<l && kp<4;n++) {
-  if (*cp=='/' || *cp==0) {
-   switch (kp) {
-    case 0:
-      *cp=0;
-      strncpy(a->vname,sp,32);
-      a->vname[31]=0;
-     break;;
-    case 1:
-      *cp=0;
-      strncpy(a->key1,sp,512);
-      a->key1[511]=0;
-     break;;
-    case 2:
-      *cp=0;
-      strncpy(a->key2,sp,512);
-      a->key2[511]=0;
-     break;;
-    case 3:
-      strncpy(a->key3,sp,512);
-      a->key3[511]=0;
-     break;;
-   }
-   kp++;
-   sp=cp+1;
-  }
-  cp++;
- }
- if (a->key1[0]==0) evlt_sha_hex(a->vname,a->key1,strnlen(a->vname,32));
- if (a->key2[0]==0) evlt_sha_hex(a->key1,a->key2,strnlen(a->key1,32));
- if (a->key3[0]==0) evlt_sha_hex(a->key2,a->key3,strnlen(a->key2,32));
-
+ strncpy(a->kpath,argv[0],KPATH_SIZE);
  argc--;argv++;
+
+ evlt_kpath2keys(a);
 
  while (argc>0 && rc>=0) {
   opt=argv[0];
@@ -198,6 +165,9 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
        }
       }
      break;;
+    case 'S':
+      a->idxit=0;
+     break;;
     case 'd':
       argc--;argv++;
       if (argc<1) {return -6;}
@@ -227,21 +197,21 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       if (manpass) {
        tmp[0]=0;
        if (a->action==0) {
-        evlt_getpass("Master Key : ",tmp,512);
+        evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
        } else {
-        evlt_getpass("Master Key 1st : ",tmp,512);
-        evlt_getpass("Master Key 2nd : ",passchk,512);
-        if (strncmp(tmp,passchk,512)!=0) {
+        evlt_getpass("Master Key 1st : ",tmp,VAULTKEY_SIZE);
+        evlt_getpass("Master Key 2nd : ",passchk,VAULTKEY_SIZE);
+        if (strncmp(tmp,passchk,VAULTKEY_SIZE)!=0) {
          fprintf(stderr,"### ERROR   : Password entries do not match!\n");
          return -4;
         }
        }
       } else {
-       strncpy(tmp,argv[0],512);
+       strncpy(tmp,argv[0],VAULTKEY_SIZE);
        tmp[511]=0;
       }
       if (tmp[0]!=0) {
-       evlt_sha_hex(tmp,a->passkey,strnlen(tmp,512));
+       evlt_sha_hex(tmp,a->passkey,strnlen(tmp,VAULTKEY_SIZE));
       }
      break;;
     case 'v':
@@ -284,8 +254,10 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n\n");
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
- fprintf(stderr," del             Delete a data blob\n\n");
+ fprintf(stderr," del             Delete a data blob\n");
+ fprintf(stderr," ls              List data entries in a path\n\n");
  fprintf(stderr," -v              Verbose mode\n");
+ fprintf(stderr," -S              Secret mode -> Do not index entry -> Invisible to ls command\n");
  fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8\n");
  fprintf(stderr," -b KBsize       Blocksize in KB Default=64KB Allowed=1 2 4 8 16 32 64\n");
  fprintf(stderr," -p              Password content -> Put: enter value using a password prompt\n");
@@ -318,12 +290,13 @@ int main(int argc,char ** argv) {
  size_t sz;
 
  snprintf(default_path,1024,"%s/.evlt", getpwuid(getuid())->pw_dir);
- memset(a.passkey,0,512);
+ memset(a.passkey,0,VAULTKEY_SIZE);
  a.passkey[0]=0;
  a.sftp_host[0]=0;
  a.sftp_user[0]=0;
  a.sftp_port=0;
  a.rsakey[0]=0;
+ a.idxit=1;
 
  if (file_exists(".evlt.cfg")) {
   strncpy(cfgfile_path,".evlt.cfg",1024);
@@ -414,6 +387,7 @@ int main(int argc,char ** argv) {
 
  if (a.verbose) {
   fprintf(stderr,"### VERBOSE : Action=%d\n### VERBOSE : Vault=%s\n### VERBOSE : Segments=%d\n### VERBOSE : Key1=%s\n### VERBOSE : Key2=%s\n### VERBOSE : Key3=%s\n",a.action,a.vname,a.segments,a.key1,a.key2,a.key3);
+  fprintf(stderr,"### VERBOSE : KPATH=%s\n",a.kpath);
  }
 
  v.path[0]=0;
@@ -435,8 +409,8 @@ int main(int argc,char ** argv) {
   if (sz==129) {
    memcpy(a.passkey,tmp,129);
   } else {
-   evlt_getpass("Master Key : ",tmp,512);
-   sz=evlt_put_masterkey(v.path,tmp,strnlen(tmp,512));
+   evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
+   sz=evlt_put_masterkey(v.path,tmp,strnlen(tmp,VAULTKEY_SIZE));
    if (sz>0) {
     sz=evlt_get_masterkey(v.path,tmp);
     if (sz==129) {
@@ -444,6 +418,9 @@ int main(int argc,char ** argv) {
     }
    }
   }
+ }
+ if (a.verbose) {
+  fprintf(stderr,"### VERBOSE : MASTER=%s\n",a.passkey);
  }
 
  rc=-999;
