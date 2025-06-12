@@ -26,8 +26,8 @@ unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
 unsigned char passcont=0;
 
-int default_segments=8;
-int default_blocksize=64;
+int default_segments=1;
+int default_blocksize=1;
 unsigned char default_path[1024]={0};
 unsigned char cfgfile_path[1024]={0};
 
@@ -90,7 +90,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  unsigned char tmp[1024]={0};
  unsigned char passchk[VAULTKEY_SIZE]={0};
  unsigned char *cp,*sp;
- unsigned char kp=0;
+ unsigned char kp=0,*tmpp;
  unsigned char *sp0=NULL,*sp1=NULL,*sp2=NULL,*sp3=NULL;
  unsigned char manpass=0;
  unsigned char hexkey[129];
@@ -123,13 +123,9 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   a->action=5;
   manpass=0;
   argc--;argv++;
-  evlt_getpass("Master Key 1st : ",tmp,VAULTKEY_SIZE);
-  evlt_getpass("Master Key 2nd : ",passchk,VAULTKEY_SIZE);
-  if (strncmp(tmp,passchk,VAULTKEY_SIZE)!=0) {
-   fprintf(stderr,"### ERROR   : Password entries do not match!\n");
-   return -4;
-  }
-  evlt_sha_hex(tmp,a->passkey,strnlen(tmp,VAULTKEY_SIZE));
+  evlt_getpass("Master Key : ",a->passkey,VAULTKEY_SIZE);
+  //evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
+  //evlt_sha_hex(tmp,a->passkey,strnlen(tmp,VAULTKEY_SIZE));
  }
 
  a->segments=default_segments;
@@ -142,7 +138,13 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
    fprintf(stderr,"## Error : bad nr of arguments\n");
    return -1;
   }
-  strncpy(a->kpath,argv[0],KPATH_SIZE);
+  if (argv[0][0]!='/') {
+   a->kpath[0]='/';
+   tmpp=a->kpath; tmpp++;
+   strncpy(tmpp,argv[0],strnlen(argv[0],KPATH_SIZE));
+  } else {
+   strncpy(a->kpath,argv[0],strnlen(argv[0],KPATH_SIZE));
+  }
   argc--;argv++;
  }
 
@@ -435,7 +437,9 @@ int main(int argc,char ** argv) {
    memcpy(a.passkey,tmp,129);
   } else {
    evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
+//   evlt_sha_hex(tmp,a.passkey,strnlen(tmp,VAULTKEY_SIZE));
    sz=evlt_put_masterkey(v.path,tmp,strnlen(tmp,VAULTKEY_SIZE));
+//   sz=evlt_put_masterkey(v.path,a.passkey,strnlen(a.passkey,VAULTKEY_SIZE));
    if (sz>0) {
     sz=evlt_get_masterkey(v.path,tmp);
     if (sz==129) {
