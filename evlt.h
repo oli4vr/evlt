@@ -92,7 +92,7 @@ typedef struct _evlt_index_item {
 
 /* Structure for defining an action to be performed on a vault */
 typedef struct _evlt_act {
- unsigned char action; // 0=get 1=put 2=del 3=append 4=ls 99=delrec ...
+ unsigned char action; // 0=get 1=put 2=del 3=append 4=ls 5=master 99=delrec ...
  unsigned char kpath[KPATH_SIZE];
  unsigned char vname[VAULTNAME_SIZE];
  unsigned char key1[VAULTKEY_SIZE];

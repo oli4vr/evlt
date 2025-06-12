@@ -946,6 +946,7 @@ size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);
+ mkdir(path,S_IRWXU);
 
  //Process
  sz=evlt_sha_hex(m,hex512,s);

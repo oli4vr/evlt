@@ -98,7 +98,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
 
  a->encrypt_file=0;
 
- if (argc<2) {//Bad nr arguments 
+ if (argc<1) {//Bad nr arguments 
   return -1;
  }
 
@@ -107,25 +107,44 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
  if (strncmp(argv[0],"get",3)==0) {
   a->action=0;
   argc--;argv++;
- } else if (strncmp(argv[0],"put",3)==0) {
+ } else if (strncmp(argv[0],"put",4)==0) {
   a->action=1;
   argc--;argv++;
- } else if (strncmp(argv[0],"del",3)==0) {
+ } else if (strncmp(argv[0],"del",4)==0) {
   a->action=2;
   argc--;argv++;
- } else if (strncmp(argv[0],"append",3)==0) {
+ } else if (strncmp(argv[0],"append",7)==0) {
   a->action=3;
   argc--;argv++;
  } else if (strncmp(argv[0],"ls",3)==0) {
   a->action=4;
   argc--;argv++;
+ } else if (strncmp(argv[0],"master",7)==0) {
+  a->action=5;
+  manpass=0;
+  argc--;argv++;
+  evlt_getpass("Master Key 1st : ",tmp,VAULTKEY_SIZE);
+  evlt_getpass("Master Key 2nd : ",passchk,VAULTKEY_SIZE);
+  if (strncmp(tmp,passchk,VAULTKEY_SIZE)!=0) {
+   fprintf(stderr,"### ERROR   : Password entries do not match!\n");
+   return -4;
+  }
+  evlt_sha_hex(tmp,a->passkey,strnlen(tmp,VAULTKEY_SIZE));
  }
 
  a->segments=default_segments;
  a->verbose=0;
 
- strncpy(a->kpath,argv[0],KPATH_SIZE);
- argc--;argv++;
+ if (a->action==5) {
+  strncpy(a->kpath,"/__nopath__",KPATH_SIZE);
+ } else {
+  if (argc<1) {//Bad nr arguments 
+   fprintf(stderr,"## Error : bad nr of arguments\n");
+   return -1;
+  }
+  strncpy(a->kpath,argv[0],KPATH_SIZE);
+  argc--;argv++;
+ }
 
  evlt_kpath2keys(a);
 
@@ -255,6 +274,7 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
  fprintf(stderr," del             Delete a data blob\n");
+ fprintf(stderr," master          Set the default master key\n");
  fprintf(stderr," ls              List data entries in a path\n\n");
  fprintf(stderr," -v              Verbose mode\n");
  fprintf(stderr," -S              Secret mode -> Do not index entry -> Invisible to ls command\n");
@@ -400,6 +420,11 @@ int main(int argc,char ** argv) {
   strncpy(v.path,default_path,1024);
   v.path[1023]=0;
   strncpy(a.path,v.path,1024);
+ }
+
+ if (a.action==5) {
+   sz=evlt_put_masterkey(a.path,a.passkey,strnlen(a.passkey,VAULTKEY_SIZE));
+   return 0;
  }
 
  evlt_init(&v,&a);
