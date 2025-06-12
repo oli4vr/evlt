@@ -147,10 +147,15 @@ evlt             Entropy Vault
                  evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
 
  put/get         Store/Recall a data blob. Uses stdin/stdout by default
+ append          Append the input data to the end of an existing data blob
  del             Delete a data blob
+ master          Set the default master key
+ ls              List data entries in a path
 
  -v              Verbose mode
- -n NR           Use NR number of parallel vault file segments. Default=8
+ -S              Secret mode -> Do not index entry -> Invisible to ls command
+ -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8
+ -b KBsize       Blocksize in KB Default=64KB Allowed=1 2 4 8 16 32 64
  -p              Password content -> Put: enter value using a password prompt
                                   -> Get: Invisible copy/paste output
  -i              Invisible copy/paste output. Good for keys.
