@@ -28,3 +28,6 @@ int decrypt_data(crypttale * ct,unsigned char * buffer,int len);
 
 /* Obscure a source key by sha512-ing every 64byte block and writing it's hash to the target key */
 void sha_key(unsigned char * src,unsigned char * tgt);
+
+/* Get a local unique sha512 hash from a combination of hostname, username and mac addresses */
+void get_unique_hash(unsigned char *hash);

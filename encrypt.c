@@ -21,6 +21,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <ifaddrs.h>
+#include <netpacket/packet.h>
 #include "encrypt.h"
 
 void sha_key(unsigned char * src,unsigned char * tgt) {
@@ -230,3 +232,47 @@ int decrypt_data(crypttale *ct,unsigned char * buffer,int len) {
  }
  invertxor(ct,buffer,len);
 }
+
+void get_unique_hash(unsigned char *hash) {
+    const char *fallback = "RANDOMSTR";
+    unsigned char hostname[256] = "";
+    unsigned char *username = NULL;
+    unsigned char macs[1024] = "";
+
+    // Get hostname or fallback
+    if (gethostname((char*)hostname, sizeof(hostname)) != 0 || strlen((char*)hostname) == 0)
+        strncpy((char*)hostname, fallback, sizeof(hostname)-1);
+
+    // Get username or fallback
+    username = getlogin();
+    if (!username || strlen(username) == 0)
+        username = (unsigned char*)fallback;
+
+    // Get MAC addresses or fallback
+    struct ifaddrs *ifaddr = NULL, *ifa;
+    int mac_found = 0;
+    if (getifaddrs(&ifaddr) == 0) {
+        for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_PACKET) {
+                struct sockaddr_ll *s = (struct sockaddr_ll*)ifa->ifa_addr;
+                if (s->sll_halen == 6) {
+                    unsigned char mac[18];
+                    snprintf((char*)mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                        s->sll_addr[0], s->sll_addr[1], s->sll_addr[2],
+                        s->sll_addr[3], s->sll_addr[4], s->sll_addr[5]);
+                    strncat((char*)macs, (char*)mac, sizeof(macs) - strlen((char*)macs) - 1);
+                    mac_found = 1;
+                }
+            }
+        }
+        freeifaddrs(ifaddr);
+    }
+    if (!mac_found)
+        strncpy((char*)macs, fallback, sizeof(macs)-1);
+
+    unsigned char concat[2048] = {0};
+    snprintf((char*)concat, sizeof(concat), "%s%s%s", hostname, username, macs);
+
+    SHA512(concat, strnlen((char*)concat, 2048), hash);
+}
+

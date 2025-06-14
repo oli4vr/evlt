@@ -21,8 +21,15 @@
 
 #define SFTP_RETRY 3
 
-unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
+//unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
+unsigned char master_obscure[1024]={0};
 unsigned char zerostr[1]={0};
+
+int master_expire_minutes=60;
+
+void set_master_expire_minutes(int m) {
+ master_expire_minutes=m;
+}
 
 // Return timestamp in microseconds
 int64_t getusecs() {
@@ -45,6 +52,33 @@ long get_file_size(const char *filename) {
  long size = ftell(file);
  fclose(file);
  return size;
+}
+
+int delete_if_older(const char *filepath, int minutes) {
+    struct stat file_stat;
+    time_t current_time;
+    double diff_minutes;
+
+    // Get the current time
+    time(&current_time);
+
+    // Get file statistics
+    if (stat(filepath, &file_stat) != 0) {
+        return -1;
+    }
+
+    // Calculate the difference in minutes
+    diff_minutes = difftime(current_time, file_stat.st_mtime) / 60;
+
+    // Check if the file is older than the specified number of minutes
+    if (diff_minutes > minutes) {
+        if (remove(filepath) != 0) {
+            return -1;
+        }
+        fprintf(stderr,"## Master key expired\n");
+    }
+
+    return 0;
 }
 
 //Wipe a buffer by replacing it's content with random bytes
@@ -903,10 +937,17 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
  unsigned char buffer[MASTER_BLOCK_SIZE];
  unsigned char hostn[256];
  unsigned char filen[1024];
+ unsigned char uhash[64];
  FILE *fp;
  uint16_t dpos;
  size_t sz;
  crypttale ct;
+
+ //Create a local unique master obscuring key
+ if (*master_obscure==0) {
+  get_unique_hash(uhash); sz=64;
+  data2hex(uhash,master_obscure,&sz);
+ }
 
  //Setup
  random_wipe(buffer,MASTER_BLOCK_SIZE);
@@ -914,6 +955,9 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);
+
+ //Delete if expired
+ delete_if_older(filen,master_expire_minutes);
 
  //Read
  fp=fopen(filen,"rb");
@@ -935,10 +979,17 @@ size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
  unsigned char buffer[MASTER_BLOCK_SIZE];
  unsigned char hostn[256];
  unsigned char filen[1024];
+ unsigned char uhash[64];
  FILE *fp;
  uint16_t dpos;
  size_t sz;
  crypttale ct;
+
+ //Create a local unique master obscuring key
+ if (*master_obscure==0) {
+  get_unique_hash(uhash); sz=64;
+  data2hex(uhash,master_obscure,&sz);
+ }
 
  //Setup
  random_wipe(buffer,MASTER_BLOCK_SIZE);

@@ -21,6 +21,8 @@
 
 #define LIBSSH_STATIC
 
+void set_master_expire_minutes(int m);
+
 /* Structure for holding a block of data with its SHA-512 hash and metadata */
 typedef struct _evlt_block {
  unsigned char data[MAX_DATA_SIZE];
