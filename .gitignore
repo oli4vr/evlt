@@ -56,4 +56,5 @@ dkms.conf
 libssh
 openssl
 inst
+localvaults
 */**/*

@@ -60,7 +60,6 @@ int process_rhoststring(unsigned char *s,evlt_act *a) {
   a->sftp_user[63]=0;
  } else {
   sp=tmp;
-//  gethostname(a->sftp_user,64);
   strncpy(a->sftp_user,getlogin(),64);
   a->sftp_user[63]=0;
  }
@@ -76,8 +75,6 @@ int process_rhoststring(unsigned char *s,evlt_act *a) {
  a->sftp_host[127]=0;
 
  if (a->sftp_host[0]==0) return 0;
-
-// fprintf(stderr,"%s %s %d\n",a->sftp_user,a->sftp_host,a->sftp_port);
 
  return 1;
 }
@@ -124,8 +121,6 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   manpass=0;
   argc--;argv++;
   evlt_getpass("Master Key : ",a->passkey,VAULTKEY_SIZE);
-  //evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
-  //evlt_sha_hex(tmp,a->passkey,strnlen(tmp,VAULTKEY_SIZE));
  }
 
  a->segments=default_segments;
@@ -301,7 +296,7 @@ int print_help(unsigned char *cmd) {
 int main(int argc,char ** argv) {
  evlt_vault v;
  evlt_act a;
- int optrc,rc,vali;
+ int optrc,rc,vali,valx;
  unsigned char fname[1024]={0};
  unsigned char tmp[1024];
  unsigned char val[64];
@@ -348,6 +343,16 @@ int main(int argc,char ** argv) {
   if (rc>0) {
    if (tmp[0]!=0) {tmp[1023]=0;process_rhoststring(tmp,&a);}
   }
+  tmp[0]=0;
+  rc=findini(cfgfile_path,"evlt","MasterExpire",tmp);
+  if (rc>0) {
+    if (tmp[0]!=0) {
+      valx=atoi(tmp);
+      if (valx<1) valx=60;
+      set_master_expire_minutes(valx);
+    }
+  }
+
  }
  tmp[0]=0;
 
@@ -437,9 +442,7 @@ int main(int argc,char ** argv) {
    memcpy(a.passkey,tmp,129);
   } else {
    evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
-//   evlt_sha_hex(tmp,a.passkey,strnlen(tmp,VAULTKEY_SIZE));
    sz=evlt_put_masterkey(v.path,tmp,strnlen(tmp,VAULTKEY_SIZE));
-//   sz=evlt_put_masterkey(v.path,a.passkey,strnlen(a.passkey,VAULTKEY_SIZE));
    if (sz>0) {
     sz=evlt_get_masterkey(v.path,tmp);
     if (sz==129) {

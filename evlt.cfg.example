@@ -4,3 +4,4 @@ DefaultSegments=1
 DefaultBlocksize=1 
 DefaultPath=localvaults
 RemoteHost=user@remotehost
+MasterExpire=60
