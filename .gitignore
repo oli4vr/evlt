@@ -37,6 +37,10 @@ evlt
 *.x86_64
 *.hex
 
+# Packages
+*.rpm
+*.deb
+
 # Debug files
 *.dSYM/
 *.su
@@ -52,9 +56,12 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-#Subdirs
+# Subdirs
 libssh
 openssl
 inst
 localvaults
 */**/*
+
+# Files
+*.spec

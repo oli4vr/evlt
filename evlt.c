@@ -21,7 +21,6 @@
 
 #define SFTP_RETRY 3
 
-//unsigned char master_obscure[]="zAes,1dVi;o5sp^89dkfnB7_xcv&;klnTz:iY&eoO45fPh(ps!4do/Rfj";
 unsigned char master_obscure[1024]={0};
 unsigned char zerostr[1]={0};
 

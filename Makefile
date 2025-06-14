@@ -12,7 +12,7 @@ STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTA
 JOBS := -j$(NUM_CTHR)
 
 # Build all
-all: ssl ssh main
+all: ssl ssh main pkg
 
 # Build openssl as a static library
 ssl:
@@ -57,3 +57,7 @@ install:
 # Uninstall
 uninstall:
 	rm ~/bin/evlt
+
+# Packages
+pkg:
+	./buildpkg.sh

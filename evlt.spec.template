@@ -1,0 +1,40 @@
+Name:           evlt
+Version:        0.1
+Release:        __RELEASE__
+Summary:        Entropy Vault
+License:        GPL
+URL:            https://github.com/oli4vr
+BuildRoot:      %{_tmppath}/%{name}-build
+Packager:       Olivier Van Rompuy <oli4vr@gmail.com>
+
+%description
+Entropy Vault - Securely store and retrieve data from a secure crypto vault
+
+%prep
+mkdir %{name}-%{version}
+cp %{_sourcedir}/evlt .
+
+%build
+# Nothing to build
+
+%install
+mkdir -p $RPM_BUILD_ROOT/bin
+install -m 0755 evlt $RPM_BUILD_ROOT/bin
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+rm -rf %{_tmppath}/%{name}
+rm -rf %{_topdir}/BUILD/%{name}
+rm -rf evlt
+
+%files
+%defattr(-,root,root,-)
+/bin/evlt
+
+%post
+chmod u+x /bin/evlt
+
+%preun
+chmod u+x /bin/evlt
+
+%changelog
