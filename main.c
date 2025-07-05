@@ -265,14 +265,17 @@ int print_help(unsigned char *cmd) {
  if (cmd==NULL) {return -1;}
  fprintf(stderr,"evlt             Entropy Vault\n");
  fprintf(stderr,"                 by Olivier Van Rompuy\n\n");
- fprintf(stderr," Syntax          evlt put /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n");
- fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n");
- fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]\n\n");
+ fprintf(stderr," Syntax          evlt put /vaultname/key1/key2/key3/path [options]\n");
+ fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3/path [options]\n");
+ fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [options]\n");
+ fprintf(stderr,"                 evlt ls  /vaultname/key1/key2/key3/path\n");
+ fprintf(stderr,"                 evlt master\n\n");
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
  fprintf(stderr," del             Delete a data blob\n");
- fprintf(stderr," master          Set the default master key\n");
- fprintf(stderr," ls              List data entries in a path\n\n");
+ fprintf(stderr," ls              List data entries in a path\n");
+ fprintf(stderr," master          Set the default master key\n\n");
+ fprintf(stderr," Options\n");
  fprintf(stderr," -v              Verbose mode\n");
  fprintf(stderr," -S              Secret mode -> Do not index entry -> Invisible to ls command\n");
  fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8\n");
@@ -317,9 +320,12 @@ int main(int argc,char ** argv) {
 
  if (file_exists(".evlt.cfg")) {
   strncpy(cfgfile_path,".evlt.cfg",1024);
+ } else if (file_exists("/etc/evlt.cfg")) {
+  strncpy(cfgfile_path,"/etc/evlt.cfg",1024);
  } else {
   snprintf(cfgfile_path,1024,"%s/.evlt.cfg",default_path);
  }
+ 
  if (file_exists(cfgfile_path)) {
   val[0]=0;
   rc=findini(cfgfile_path,"evlt","DefaultSegments",val);

@@ -99,6 +99,15 @@ evlt del /password/mypassword -p
 
 Technically using /dev/null or an empty file as input technically has the same effect.
 
+### Setting the default master key
+The default master key can be set with the following command :
+```bash
+evlt master
+```
+This master key is stored in an encrypted form and expires after a certain amount of time.
+When you do not provide a master key with a put or get request it will use this stored master key if it is available and not expired.
+You can configure the expiration of the default master key by adjusting the config file parameter MasterExpire (minutes)
+
 ### Using Remote Vaults (via SFTP)
 Add an RSA private key for a remote connection.
 ```bash
@@ -142,16 +151,19 @@ Currently, "make install" copies the executable to ~/bin. Make sure this is in y
 evlt             Entropy Vault
                  by Olivier Van Rompuy
 
- Syntax          evlt put /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
-                 evlt get /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
-                 evlt del /vaultname/key1/key2/key3/path [-v] [-n NR_SEGMENTS]
+ Syntax          evlt put /vaultname/key1/key2/key3/path [options]
+                 evlt get /vaultname/key1/key2/key3/path [options]
+                 evlt del /vaultname/key1/key2/key3/path [options]
+                 evlt ls  /vaultname/key1/key2/key3/path
+                 evlt master
 
  put/get         Store/Recall a data blob. Uses stdin/stdout by default
  append          Append the input data to the end of an existing data blob
  del             Delete a data blob
- master          Set the default master key
  ls              List data entries in a path
+ master          Set the default master key
 
+ Options
  -v              Verbose mode
  -S              Secret mode -> Do not index entry -> Invisible to ls command
  -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8
@@ -168,6 +180,7 @@ evlt             Entropy Vault
  -R [username@]host[:port]
                  Work on a remote vault via ssh. The rsa public key must be in ~/.ssh/authorized_keys on the remote host.
                  You can store RSA private keys in vault location /.secrets/.remotehosts/.privatekey/user@host[:port]
+
 
 </pre>
 
