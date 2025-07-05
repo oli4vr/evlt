@@ -185,15 +185,19 @@ evlt             Entropy Vault
 </pre>
 
 ### Config file
-A config file .evlt.cfg is looked for in the local path or in ~/.evlt
+A config file is looked for in the local path ./.evlt.cfg, in /etc/evlt.cfg or in ~/.evlt/.evlt.cfg
 Example config file content :
 <pre>
 [evlt]
 DefaultSegments=4 
 DefaultBlocksize=1 
 DefaultPath=localvaults
+MasterExpire=60
+RemoteHost=user@remotehost
 </pre>
-The above define practical defaults. For the path you can define both absolute paths and paths relative to the currect directory. The latter can be practical to use the tool on a usb thumb drive. (Place the evlt executable and config file on the thumb drive mount point)
+DefaultPath can be practical when you want to store the vault files in a subdir of a local path (or on a usb thumb drive).
+MasterExpire configures the default master key expiration in minutes.
+RemoteHost sets a default remote host (sftp) where the vault files are located.
 
 ### How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When an EOF is hit on the input file stream, a "stop" flag is set on the last blocks of each segment.
