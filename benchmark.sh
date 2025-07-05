@@ -3,7 +3,7 @@
 SEG=32
 CNT=64
 BS=4M
-VPATH=~/.evlt
+VPATH=$(pwd)/localvaults
 if [ "$1" != "" ]
 then
  VPATH=$1

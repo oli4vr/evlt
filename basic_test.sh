@@ -1,14 +1,15 @@
 #!/bin/bash
-rm -rf ~/.evlt
+VPATH=$(pwd)/localvaults
+rm -rf $VPATH
 make clean && make main
 echo PUT
 cat 128b.txt | ./evlt put /test/test1 -v -m master -b 1 -n 1
 echo
-ls -ltr ~/.evlt
+ls -ltr $VPATH
 echo
 echo GET
 ./evlt get /test/test1 -v -m master -b 1 -n 1
-rm -rf ~/.evlt
+rm -rf $VPATH
 echo
 echo PUT
 echo voor | ./evlt put /test/test1 -v -m master -b 64 -n 32
@@ -22,5 +23,5 @@ echo
 echo GET
 ./evlt get /test/test1 -v -m master -b 64 -n 32
 echo
-ls -ltr ~/.evlt
-rm -rf ~/.evlt
+ls -ltr $VPATH
+rm -rf $VPATH

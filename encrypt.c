@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <openssl/sha.h>
+#include <openssl/evp.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -31,6 +32,56 @@ void sha_key(unsigned char * src,unsigned char * tgt) {
    SHA512(src,64,tgt);
    src+=64;
    tgt+=64;
+ }
+}
+
+void aes256_encrypt(const unsigned char *key, const unsigned char *in, unsigned char *out) {
+ EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+ int outlen;
+ EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, key, NULL);
+ EVP_CIPHER_CTX_set_padding(ctx, 0); // No padding
+ EVP_EncryptUpdate(ctx, out, &outlen, in, 32);
+ EVP_EncryptFinal_ex(ctx, out + outlen, &outlen);
+ EVP_CIPHER_CTX_free(ctx);
+}
+
+void aes256_decrypt(const unsigned char *key, const unsigned char *in, unsigned char *out) {
+ EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+ int outlen;
+ EVP_DecryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, key, NULL);
+ EVP_CIPHER_CTX_set_padding(ctx, 0); // No padding
+ EVP_DecryptUpdate(ctx, out, &outlen, in, 32);
+ EVP_DecryptFinal_ex(ctx, out + outlen, &outlen);
+ EVP_CIPHER_CTX_free(ctx);
+}
+
+void aes256_fw(crypttale *ct,unsigned char * data,int len) {
+ int n;
+ unsigned char *sp=data;
+ unsigned char *kp=ct->key;
+ unsigned int kpn=0;
+ unsigned char tmp[32];
+ for(;n<(len>>5);n++) {
+  aes256_encrypt(kp,sp,tmp);
+  memcpy(sp,tmp,32);
+  sp+=32;
+  kpn=(kpn+32)&1023;
+  kp=ct->key+kpn;
+ }
+}
+
+void aes256_bw(crypttale *ct,unsigned char * data,int len) {
+ int n;
+ unsigned char *sp=data;
+ unsigned char *kp=ct->key;
+ unsigned int kpn=0;
+ unsigned char tmp[32];
+ for(;n<(len>>5);n++) {
+  aes256_decrypt(kp,sp,tmp);
+  memcpy(sp,tmp,32);
+  sp+=32;
+  kpn=(kpn+32)&1023;
+  kp=ct->key+kpn;
  }
 }
 
@@ -213,6 +264,7 @@ int init_encrypt(crypttale *ct,unsigned char * keystr,int nr_rounds) {
 int encrypt_data(crypttale *ct,unsigned char * buffer,int len) {
  int n=0;
  invertxor(ct,buffer,len);
+ aes256_fw(ct,buffer,len);
  for(;n<ct->rounds;n++) {
   translate_fw(ct,buffer,len,ct->key[n]);
   obscure_fw(ct,buffer,len,ct->key[n]);
@@ -230,6 +282,7 @@ int decrypt_data(crypttale *ct,unsigned char * buffer,int len) {
   obscure_bw(ct,buffer,len,ct->key[n]);
   translate_bw(ct,buffer,len,ct->key[n]);
  }
+ aes256_bw(ct,buffer,len);
  invertxor(ct,buffer,len);
 }
 

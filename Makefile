@@ -39,14 +39,14 @@ main:
 	gcc -c evlt.c -o evlt.o $(CFLAGS)
 	gcc -c sftp.c -o sftp.o $(CFLAGS) 
 	gcc -c inifind.c -o inifind.o $(CFLAGS) 
-	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS) 
+	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS)
 
 # Clean only the main application
 clean:
-	rm -rf *.o evlt sftp libsftp.a
+	rm -rf *.o evlt sftp libsftp.a *.rpm *.deb
 
 # Clean everything including dependant libraries
-superclean:
+superclean: clean
 	rm -rf inst openssl libssh evlt *.o *.a
 
 # Install to ~/bin

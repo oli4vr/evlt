@@ -180,6 +180,7 @@ int evlt_init(evlt_vault *v,evlt_act *a) {
   }
   v->path[1023]=0;
  }
+// fprintf(stderr,"DEBUG %s %s\n",v->path,a->path);
  mkdir(v->path,S_IRWXU);
 
  for(n=0;n<a->segments;n++) {
@@ -552,6 +553,7 @@ int add_line_to_string(unsigned char *str, unsigned char *add) {
 
 int evlt_index_update(evlt_vault *v,evlt_act *a) {
  evlt_vault vi;
+ memset(&vi,0,sizeof(evlt_vault));
  if (a==NULL || v==NULL) {return -99;}
  if (a->idxit==0) {return 0;}
 
@@ -666,6 +668,8 @@ int evlt_index_update(evlt_vault *v,evlt_act *a) {
   fprintf(stderr,"### VERBOSE : IDX UPDATE Action=%d\n### VERBOSE : Vault=%s\n### VERBOSE : Segments=%d\n### VERBOSE : Key1=%s\n### VERBOSE : Key2=%s\n### VERBOSE : Key3=%s\n",b->action,b->vname,b->segments,b->key1,b->key2,b->key3);
   fprintf(stderr,"### VERBOSE : KPATH=%s\n",b->kpath);
  }
+ memcpy(vi.path,b->path,1024);
+// fprintf(stderr,"DEBUG %s %s %s %s \n",v->path, a->path, b->path, b->kpath); //to be deleted
  evlt_init(&vi,b);
  rc=evlt_io(&vi,fp,b);
  evlt_exit(&vi,b);
@@ -696,6 +700,10 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  pipe_buffer pb;
  sftp_thread_data sftp_td[MAX_SEGMENTS];
  pthread_t sftp_th[MAX_SEGMENTS];
+
+ memset(&subvlt,0,sizeof(evlt_vault));
+ memset(&vc,0,sizeof(evlt_vector));
+ memset(&subact,0,sizeof(evlt_act));
 
  vc.act=a;
 
