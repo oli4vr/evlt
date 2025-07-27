@@ -154,12 +154,14 @@ evlt             Entropy Vault
  Syntax          evlt put /vaultname/key1/key2/key3/path [options]
                  evlt get /vaultname/key1/key2/key3/path [options]
                  evlt del /vaultname/key1/key2/key3/path [options]
+                 evlt run /vaultname/key1/key2/key3/path [options]
                  evlt ls  /vaultname/key1/key2/key3/path
                  evlt master
 
  put/get         Store/Recall a data blob. Uses stdin/stdout by default
  append          Append the input data to the end of an existing data blob
  del             Delete a data blob
+ run             Run content as a script or command. (same as -c parameter)
  ls              List data entries in a path
  master          Set the default master key
 
@@ -198,6 +200,10 @@ RemoteHost=user@remotehost
 DefaultPath can be practical when you want to store the vault files in a subdir of a local path (or on a usb thumb drive).
 MasterExpire configures the default master key expiration in minutes.
 RemoteHost sets a default remote host (sftp) where the vault files are located.
+
+### Vault path extensions
+You can use certain extensions in the vault path to signify specific types of data like you would with files in a filesystem.
+ .password or .pwd      -> Does the same as the -p parameter (treat it as a password)
 
 ### How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When an EOF is hit on the input file stream, a "stop" flag is set on the last blocks of each segment.

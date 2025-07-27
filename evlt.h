@@ -142,3 +142,5 @@ long get_file_size(const char *filename);
 void evlt_kpath2keys(evlt_act *a);
 
 int64_t getusecs();
+
+unsigned char * get_file_extension(const unsigned char *path, unsigned char *ext, size_t ext_size);

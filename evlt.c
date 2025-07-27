@@ -1074,3 +1074,35 @@ void evlt_kpath2keys(evlt_act *a) {
   a->action=0;
  }
 }
+
+unsigned char * get_file_extension(const unsigned char *path, unsigned char *ext, size_t ext_size) {
+    // Safety: check for NULL pointers and valid ext_size
+    if (ext==NULL) return NULL;
+    if (path==NULL || ext_size == 0) {
+        ext[0] = 0;
+        return ext;
+    }
+
+    // Check if path is null-terminated within the max length
+    size_t path_len = strnlen(path, ext_size);
+    if (path_len >= ext_size) {
+        ext[0] = 0;
+        return ext;
+    }
+
+    // Find the last '.' after the last '/' or '\\'
+    const unsigned char *slash = strrchr(path, '/');
+    const unsigned char *dot = strrchr(path, '.');
+    if (!dot || (slash && dot < slash) || dot == path + path_len - 1) {
+        ext[0] = 0;
+        return ext;
+    }
+
+    // Copy extension (excluding the dot)
+    dot++; // skip the dot
+    size_t ext_len = strnlen(dot, ext_size);
+    if (ext_len >= ext_size) ext_len = ext_size - 1;
+    memcpy(ext, dot, ext_len);
+    ext[ext_len] = 0;
+    return ext;
+}

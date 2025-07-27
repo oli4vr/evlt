@@ -47,7 +47,7 @@ clean:
 
 # Clean everything including dependant libraries
 superclean: clean
-	rm -rf inst openssl libssh evlt *.o *.a
+	rm -rf inst openssl libssh evlt *.o *.a localvaults
 
 # Install to ~/bin
 install:

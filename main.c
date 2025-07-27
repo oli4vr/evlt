@@ -101,11 +101,15 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
 
  if (argv[0][0]=='-') {return -2;}
 
- if (strncmp(argv[0],"get",3)==0) {
+ if (strncmp(argv[0],"get",4)==0) {
   a->action=0;
   argc--;argv++;
  } else if (strncmp(argv[0],"put",4)==0) {
   a->action=1;
+  argc--;argv++;
+ } else if (strncmp(argv[0],"run",4)==0) {
+  a->action=0;
+  runascmd=1;
   argc--;argv++;
  } else if (strncmp(argv[0],"del",4)==0) {
   a->action=2;
@@ -257,6 +261,19 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   }
   argc--;argv++;
  }
+ if (a->kpath!=NULL) {
+  if (get_file_extension(a->kpath,tmp,32)!=NULL) {
+   if (strncmp(tmp,"pwd",32)==0 || strncmp(tmp,"password",32)==0) {
+     passcont=1;
+     a->segments=1;
+     a->blocksize=1;
+     hiddenout=1;
+   } else if (strncmp(tmp,"run",32)==0 || strncmp(tmp,"script",32)==0) {
+     runascmd=1;
+   }
+  }
+ }
+
  return rc;
 }
 
@@ -273,6 +290,7 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
  fprintf(stderr," del             Delete a data blob\n");
+ fprintf(stderr," run             Run content as a script or command. (same as -c parameter)\n");
  fprintf(stderr," ls              List data entries in a path\n");
  fprintf(stderr," master          Set the default master key\n\n");
  fprintf(stderr," Options\n");
