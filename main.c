@@ -481,13 +481,13 @@ int main(int argc,char ** argv) {
  switch (a.action) {
   case 0:
     if (hiddenout==1) {
-     if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m",27);
-     else fprintf(stdout,"### Payload Start ###\n%c[8m",27);
+     if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
+     else fprintf(stdout,"### Payload Start ###\n%c[8m%c[31;41m",27,27,27);
     }
     rc=evlt_io(&v,fpo,&a);
     if (hiddenout==1) {
-     if (passcont) fprintf(stdout,"%c[m<<<\n\n",27);
-     else fprintf(stdout,"%c[m\n### Payload End   ###\n",27);
+     if (passcont) fprintf(stdout,"%c[0m%c[m<<<\n\n",27,27);
+     else fprintf(stdout,"%c[0m%c[m\n### Payload End   ###\n",27,27);
     }
    break;;
   case 1:
