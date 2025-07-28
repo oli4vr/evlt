@@ -460,7 +460,7 @@ int main(int argc,char ** argv) {
 
  if (a.passkey[0]==0 && v.path[0]!=0) {
   sz=evlt_get_masterkey(v.path,tmp);
-  if (sz==129) {
+  if (sz==129 && tmp[0]!=0) {
    memcpy(a.passkey,tmp,129);
   } else {
    evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
