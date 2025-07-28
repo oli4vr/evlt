@@ -74,7 +74,7 @@ evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 -i
 To store a script in the vault:
 
 ```bash
-evlt put /myvault/sysadmin/scripts/my_script.sh -n 4 < my_script.sh
+evlt put /myvault/sysadmin/scripts/my_script.sh -f my_script.sh
 ```
 
 ### Retrieve and Execute a Script
@@ -82,7 +82,7 @@ evlt put /myvault/sysadmin/scripts/my_script.sh -n 4 < my_script.sh
 To recover and execute the script:
 
 ```bash
-evlt get /myvault/sysadmin/scripts/my_script.sh -n 4 -c 
+evlt run /myvault/sysadmin/scripts/my_script.sh 
 ```
 
 The -c option executes the content of the script or binary executable data.
@@ -151,13 +151,10 @@ Currently, "make install" copies the executable to ~/bin. Make sure this is in y
 evlt             Entropy Vault
                  by Olivier Van Rompuy
 
- Syntax          evlt put /vaultname/key1/key2/key3/path [options]
-                 evlt get /vaultname/key1/key2/key3/path [options]
-                 evlt del /vaultname/key1/key2/key3/path [options]
-                 evlt run /vaultname/key1/key2/key3/path [options]
-                 evlt ls  /vaultname/key1/key2/key3/path
+ Syntax          evlt [command] /vaultname/key1/key2/key3/path [options]
                  evlt master
 
+ Commands
  put/get         Store/Recall a data blob. Uses stdin/stdout by default
  append          Append the input data to the end of an existing data blob
  del             Delete a data blob
@@ -183,7 +180,6 @@ evlt             Entropy Vault
                  Work on a remote vault via ssh. The rsa public key must be in ~/.ssh/authorized_keys on the remote host.
                  You can store RSA private keys in vault location /.secrets/.remotehosts/.privatekey/user@host[:port]
 
-
 </pre>
 
 ### Config file
@@ -203,7 +199,9 @@ RemoteHost sets a default remote host (sftp) where the vault files are located.
 
 ### Vault path extensions
 You can use certain extensions in the vault path to signify specific types of data like you would with files in a filesystem.
+<pre>
  .password or .pwd      -> Does the same as the -p parameter (treat it as a password)
+</pre>
 
 ### How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When an EOF is hit on the input file stream, a "stop" flag is set on the last blocks of each segment.

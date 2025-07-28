@@ -282,11 +282,9 @@ int print_help(unsigned char *cmd) {
  if (cmd==NULL) {return -1;}
  fprintf(stderr,"evlt             Entropy Vault\n");
  fprintf(stderr,"                 by Olivier Van Rompuy\n\n");
- fprintf(stderr," Syntax          evlt put /vaultname/key1/key2/key3/path [options]\n");
- fprintf(stderr,"                 evlt get /vaultname/key1/key2/key3/path [options]\n");
- fprintf(stderr,"                 evlt del /vaultname/key1/key2/key3/path [options]\n");
- fprintf(stderr,"                 evlt ls  /vaultname/key1/key2/key3/path\n");
+ fprintf(stderr," Syntax          evlt [command] /vaultname/key1/key2/key3/path [options]\n");
  fprintf(stderr,"                 evlt master\n\n");
+ fprintf(stderr," Commands\n");
  fprintf(stderr," put/get         Store/Recall a data blob. Uses stdin/stdout by default\n");
  fprintf(stderr," append          Append the input data to the end of an existing data blob\n");
  fprintf(stderr," del             Delete a data blob\n");
