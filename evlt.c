@@ -827,13 +827,6 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  }
  if (out==NULL && a->action==0) {sync();return -1;}
 
- init_encrypt(&vc.ct1,a->key1,1);
- init_encrypt(&vc.ct2,a->key2,1);
- init_encrypt(&vc.ct3,a->key3,1);
- if (a->passkey[0]!=0) {init_encrypt(&vc.passkey,a->passkey,3);}
- else {vc.passkey.key[0]=0;}
- vc.status=0;
-
  //fopen all segment files for binary read
  for(n=0;n<v->segments;n++) {
   v->rfp[n]=fopen(v->segfile[n],"rb");
@@ -848,6 +841,15 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
    if (v->wfp[n]==NULL) {fprintf(stderr,"### ERROR   : Can't open the temp segment file for write.\n%s\n",v->wrtfile[n]); return -2;}
   }
  }
+
+ //Initialize the encryption contexts
+ init_encrypt(&vc.ct1,a->key1,1,CT_ROTATE|CT_SUB);
+ init_encrypt(&vc.ct2,a->key2,1,CT_ROTATE|CT_SUB);
+ init_encrypt(&vc.ct3,a->key3,1,CT_ROTATE|CT_SUB);
+ init_encrypt(&vc.passkey,a->passkey,3,CT_ROTATE|CT_SUB|CT_AES256);
+// if (a->passkey[0]!=0) {init_encrypt(&vc.passkey,a->passkey,3,CT_ROTATE|CT_SUB|CT_AES256);}
+// else {vc.passkey.key[0]=0;}
+ vc.status=0;
 
  //Mix write/read
  if (a->verbose) fprintf(stderr,"### VERBOSE : R/W IO ON LOCAL VAULT %s\n",a->vname);
@@ -867,6 +869,10 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  for(n=0;n<v->segments;n++) {
   if (v->rfp[n]!=NULL) {fclose(v->rfp[n]);}
  }
+ exit_encrypt(&vc.ct1);
+ exit_encrypt(&vc.ct2);
+ exit_encrypt(&vc.ct3);
+ exit_encrypt(&vc.passkey);
 
  //in case of mode 1 (write), close write file and overwrite copy to read files
  if (a->action>0) {
@@ -958,7 +964,7 @@ size_t evlt_get_masterkey(unsigned char *path,unsigned char *m) {
 
  //Setup
  random_wipe(buffer,MASTER_BLOCK_SIZE);
- init_encrypt(&ct,master_obscure,0);
+ init_encrypt(&ct,master_obscure,8,CT_ROTATE|CT_SUB|CT_AES256);
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);
@@ -1000,7 +1006,7 @@ size_t evlt_put_masterkey(unsigned char *path,unsigned char *m,size_t s) {
 
  //Setup
  random_wipe(buffer,MASTER_BLOCK_SIZE);
- init_encrypt(&ct,master_obscure,0);
+ init_encrypt(&ct,master_obscure,8,CT_ROTATE|CT_SUB|CT_AES256);
  gethostname(hostn,256);
  sz=evlt_sha_hex(hostn,hex512,strnlen(hostn,256));
  sprintf(filen,"%s/%s.evlt",path,hex512);

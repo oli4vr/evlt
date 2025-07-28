@@ -16,8 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <openssl/sha.h>
-#include <openssl/evp.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -35,24 +33,16 @@ void sha_key(unsigned char * src,unsigned char * tgt) {
  }
 }
 
-void aes256_encrypt(const unsigned char *key, const unsigned char *in, unsigned char *out) {
- EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+void aes256_encrypt(EVP_CIPHER_CTX * ctx, const unsigned char *in, unsigned char *out) {
  int outlen;
- EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, key, NULL);
- EVP_CIPHER_CTX_set_padding(ctx, 0); // No padding
  EVP_EncryptUpdate(ctx, out, &outlen, in, 32);
  EVP_EncryptFinal_ex(ctx, out + outlen, &outlen);
- EVP_CIPHER_CTX_free(ctx);
 }
 
-void aes256_decrypt(const unsigned char *key, const unsigned char *in, unsigned char *out) {
- EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+void aes256_decrypt(EVP_CIPHER_CTX * ctx, const unsigned char *in, unsigned char *out) {
  int outlen;
- EVP_DecryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, key, NULL);
- EVP_CIPHER_CTX_set_padding(ctx, 0); // No padding
  EVP_DecryptUpdate(ctx, out, &outlen, in, 32);
  EVP_DecryptFinal_ex(ctx, out + outlen, &outlen);
- EVP_CIPHER_CTX_free(ctx);
 }
 
 void aes256_fw(crypttale *ct,unsigned char * data,int len) {
@@ -62,7 +52,7 @@ void aes256_fw(crypttale *ct,unsigned char * data,int len) {
  unsigned int kpn=0;
  unsigned char tmp[32];
  for(;n<(len>>5);n++) {
-  aes256_encrypt(kp,sp,tmp);
+  aes256_encrypt(ct->CTX_EN[n&CTX_DIFF],sp,tmp);
   memcpy(sp,tmp,32);
   sp+=32;
   kpn=(kpn+32)&1023;
@@ -77,7 +67,7 @@ void aes256_bw(crypttale *ct,unsigned char * data,int len) {
  unsigned int kpn=0;
  unsigned char tmp[32];
  for(;n<(len>>5);n++) {
-  aes256_decrypt(kp,sp,tmp);
+  aes256_decrypt(ct->CTX_DE[n&CTX_DIFF],sp,tmp);
   memcpy(sp,tmp,32);
   sp+=32;
   kpn=(kpn+32)&1023;
@@ -248,28 +238,59 @@ void obscure_bw(crypttale *ct,unsigned char * str,int len,unsigned char phase) {
 }
 
 //Set up encryption
-int init_encrypt(crypttale *ct,unsigned char * keystr,int nr_rounds) {
+int init_encrypt(crypttale *ct,unsigned char * keystr,int nr_rounds,unsigned char method) {
  unsigned int n=0;
+ unsigned char * key;
  memset(ct->key,0,KEY_SIZE);
  for (;n<256;n++) {
    memset(ct->ttable[0],0,256);
    memset(ct->dtable[0],0,256);
  }
  ct->rounds=nr_rounds;
+ if (method==0)
+  ct->method=CT_ROTATE|CT_SUB|CT_AES256;
+ else
+  ct->method=method;
  buildkey(ct,keystr);
  buildtrans(ct);
+ if (ct->method & CT_AES256) {
+  key=ct->key;
+  for(n=0;n<CTX_NUM;n++) {
+   ct->CTX_EN[n]=EVP_CIPHER_CTX_new();
+   ct->CTX_DE[n]=EVP_CIPHER_CTX_new();
+   EVP_EncryptInit_ex(ct->CTX_EN[n], EVP_aes_256_ecb(), NULL, key, NULL);
+   EVP_CIPHER_CTX_set_padding(ct->CTX_EN[n], 0); // No padding
+   EVP_DecryptInit_ex(ct->CTX_DE[n], EVP_aes_256_ecb(), NULL, key, NULL);
+   EVP_CIPHER_CTX_set_padding(ct->CTX_DE[n], 0); // No padding
+   key+=32;
+  }
+ }
+}
+
+int exit_encrypt(crypttale *ct) {
+ unsigned int n=0;
+ if (ct->method & CT_AES256) {
+  for(n=0;n<CTX_NUM;n++) {
+   EVP_CIPHER_CTX_free(ct->CTX_EN[n]);
+   EVP_CIPHER_CTX_free(ct->CTX_DE[n]);
+  }
+ }
 }
 
 //Encrypt a buffer of n bytes
 int encrypt_data(crypttale *ct,unsigned char * buffer,int len) {
  int n=0;
  invertxor(ct,buffer,len);
- aes256_fw(ct,buffer,len);
+ if (ct->method & CT_AES256)
+  aes256_fw(ct,buffer,len);
  for(;n<ct->rounds;n++) {
-  translate_fw(ct,buffer,len,ct->key[n]);
-  obscure_fw(ct,buffer,len,ct->key[n]);
+  if (ct->method & CT_SUB)
+   translate_fw(ct,buffer,len,ct->key[n]);
+  if (ct->method & CT_ROTATE)
+   obscure_fw(ct,buffer,len,ct->key[n]);
   invertxor(ct,buffer,len);
-  obscure_bw(ct,buffer,len,ct->key[(n+512)&KEY_DIFF]);
+  if (ct->method & CT_ROTATE)
+   obscure_bw(ct,buffer,len,ct->key[(n+512)&KEY_DIFF]);
  }
 }
 
@@ -277,12 +298,16 @@ int encrypt_data(crypttale *ct,unsigned char * buffer,int len) {
 int decrypt_data(crypttale *ct,unsigned char * buffer,int len) {
  int n=ct->rounds-1;
  for(;n>=0;n--) {
-  obscure_fw(ct,buffer,len,ct->key[(n+512)&KEY_DIFF]);
+  if (ct->method & CT_ROTATE)
+   obscure_fw(ct,buffer,len,ct->key[(n+512)&KEY_DIFF]);
   invertxor(ct,buffer,len);
-  obscure_bw(ct,buffer,len,ct->key[n]);
-  translate_bw(ct,buffer,len,ct->key[n]);
+  if (ct->method & CT_ROTATE)
+   obscure_bw(ct,buffer,len,ct->key[n]);
+  if (ct->method & CT_SUB)
+   translate_bw(ct,buffer,len,ct->key[n]);
  }
- aes256_bw(ct,buffer,len);
+ if (ct->method & CT_AES256)
+  aes256_bw(ct,buffer,len);
  invertxor(ct,buffer,len);
 }
 
