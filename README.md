@@ -191,7 +191,7 @@ DefaultSegments=4
 DefaultBlocksize=1 
 DefaultPath=localvaults
 MasterExpire=60
-RemoteHost=user@remotehost
+RemoteHost=user@remotehost:22
 </pre>
 DefaultPath can be practical when you want to store the vault files in a subdir of a local path (or on a usb thumb drive).
 MasterExpire configures the default master key expiration in minutes.
