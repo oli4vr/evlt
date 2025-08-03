@@ -220,15 +220,25 @@ int put_sftp(char *username, char *hostname, unsigned int tcpport, char *local_p
 void* sftp_thread(void *data) {
  int rc;
  sftp_thread_data* td=(sftp_thread_data*)data;
+ unsigned char tmppath[1024];
 // fprintf(stderr,"%s %s %s %s\n",td->user,td->host,td->rpath,td->lpath);
  switch(td->action) {
  case 0:
-   td->rc=get_sftp(td->user,td->host,td->tcpport,td->rpath,td->lpath,td->rsa);
+   sprintf(tmppath,"%s.lock",td->lpath);
+   td->rc=get_sftp(td->user,td->host,td->tcpport,td->rpath,tmppath,td->rsa);
+   if (td->rc < 0) return NULL;
+   rename(tmppath,td->lpath);
+   //td->rc=get_sftp(td->user,td->host,td->tcpport,td->rpath,td->lpath,td->rsa);
   break;;
  case 1:
-   td->rc=put_sftp(td->user,td->host,td->tcpport,td->lpath,td->rpath,td->rsa);
+   sprintf(tmppath,"%s.lock",td->rpath);
+   td->rc=put_sftp(td->user,td->host,td->tcpport,td->lpath,tmppath,td->rsa);
+   if (td->rc < 0) return NULL;
+   rename_sftp(td->user,td->host,td->tcpport,tmppath,td->rpath,td->rsa);
+   //td->rc=put_sftp(td->user,td->host,td->tcpport,td->lpath,td->rpath,td->rsa);
   break;;
  }
+ return data;
 }
 
 int ssh_cmd(char *username, char *hostname, int port, char *rsa_key, char *command) {
@@ -519,4 +529,72 @@ int sftp_makedir(char *username, char *hostname, unsigned int tcpport, char *rem
  ssh_key_free(privkey);
 
  return 0;
+}
+
+int rename_sftp(char *username, char *hostname, unsigned int tcpport, char *old_remote_path, char *new_remote_path, char *rsa_key) {
+    ssh_session session = ssh_new();
+    ssh_key privkey;
+    int rc;
+
+    if (session == NULL) {
+        return -1;
+    }
+
+    rc = ssh_pki_import_privkey_base64(rsa_key, NULL, NULL, NULL, &privkey);
+    if (rc != SSH_OK) {
+        ssh_free(session);
+        return -2;
+    }
+
+    ssh_options_set(session, SSH_OPTIONS_HOST, hostname);
+    ssh_options_set(session, SSH_OPTIONS_USER, username);
+    ssh_options_set(session, SSH_OPTIONS_PORT, &tcpport);
+
+    rc = ssh_connect(session);
+    if (rc != SSH_OK) {
+        ssh_free(session);
+        ssh_key_free(privkey);
+        return -3;
+    }
+
+    rc = ssh_userauth_publickey(session, NULL, privkey);
+    if (rc != SSH_AUTH_SUCCESS) {
+        ssh_disconnect(session);
+        ssh_free(session);
+        ssh_key_free(privkey);
+        return -4;
+    }
+
+    sftp_session sftp = sftp_new(session);
+    if (sftp == NULL) {
+        ssh_disconnect(session);
+        ssh_free(session);
+        ssh_key_free(privkey);
+        return -5;
+    }
+
+    rc = sftp_init(sftp);
+    if (rc != SSH_OK) {
+        sftp_free(sftp);
+        ssh_disconnect(session);
+        ssh_free(session);
+        ssh_key_free(privkey);
+        return -6;
+    }
+
+    rc = sftp_rename(sftp, old_remote_path, new_remote_path);
+    if (rc != SSH_OK) {
+        sftp_free(sftp);
+        ssh_disconnect(session);
+        ssh_free(session);
+        ssh_key_free(privkey);
+        return -7;
+    }
+
+    sftp_free(sftp);
+    ssh_disconnect(session);
+    ssh_free(session);
+    ssh_key_free(privkey);
+
+    return 0;
 }

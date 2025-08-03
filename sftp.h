@@ -8,6 +8,9 @@ int put_sftp(char *username, char *hostname, unsigned int tcpport, char *local_p
 // Delete a remote file
 int del_sftp(char *username, char *hostname, unsigned int tcpport, char *remote_path, char *rsa_key);
 
+// Rename (move) a remote file using ssh and a base64 rsa_key stored in memory
+int rename_sftp(char *username, char *hostname, unsigned int tcpport, char *old_remote_path, char *new_remote_path, char *rsa_key);
+
 // Struct sftp_thread_data
 typedef struct _sftp_thread_data {
  unsigned char action;
