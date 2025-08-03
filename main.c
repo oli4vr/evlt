@@ -294,8 +294,8 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," Options\n");
  fprintf(stderr," -v              Verbose mode\n");
  fprintf(stderr," -S              Secret mode -> Do not index entry -> Invisible to ls command\n");
- fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8\n");
- fprintf(stderr," -b KBsize       Blocksize in KB Default=64KB Allowed=1 2 4 8 16 32 64\n");
+ fprintf(stderr," -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=1\n");
+ fprintf(stderr," -b KBsize       Blocksize in KB Default=1KB Allowed=1 2 4 8 16 32 64\n");
  fprintf(stderr," -p              Password content -> Put: enter value using a password prompt\n");
  fprintf(stderr,"                                  -> Get: Invisible copy/paste output\n");
  fprintf(stderr," -i              Invisible copy/paste output. Good for keys.\n");
