@@ -19,12 +19,14 @@
 #include "sftp.h"
 #include "evlt.h"
 #include "inifind.h"
+#include "qr.h"
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
 unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
 unsigned char passcont=0;
+unsigned char qrprint=0;
 
 int default_segments=1;
 int default_blocksize=1;
@@ -249,6 +251,13 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       a->blocksize=1;
       hiddenout=1;
      break;;
+    case 'Q':
+      passcont=1;
+      qrprint=1;
+      a->segments=1;
+      a->blocksize=1;
+      hiddenout=1;
+     break;;
     case 'R':
       argc--;argv++;
       if (argc<1) {return -13;}
@@ -298,6 +307,7 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," -b KBsize       Blocksize in KB Default=1KB Allowed=1 2 4 8 16 32 64\n");
  fprintf(stderr," -p              Password content -> Put: enter value using a password prompt\n");
  fprintf(stderr,"                                  -> Get: Invisible copy/paste output\n");
+ fprintf(stderr," -Q              QR mode : Same as -p but output printed as a QR code on the terminal\n");
  fprintf(stderr," -i              Invisible copy/paste output. Good for keys.\n");
  fprintf(stderr," -c              Run content as a script or command\n");
  fprintf(stderr," -d path         Use an alternate dir path for the vault files\n");
@@ -480,14 +490,20 @@ int main(int argc,char ** argv) {
  rc=-999;
  switch (a.action) {
   case 0:
-    if (hiddenout==1) {
-     if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
-     else fprintf(stdout,"### Payload Start ###\n%c[8m%c[31;41m",27,27,27);
-    }
-    rc=evlt_io(&v,fpo,&a);
-    if (hiddenout==1) {
-     if (passcont) fprintf(stdout,"%c[0m%c[m<<<\n\n",27,27);
-     else fprintf(stdout,"%c[0m%c[m\n### Payload End   ###\n",27,27);
+    if (qrprint) {
+      unsigned char qrstr[RSAKEY_SIZE];
+      rc=evlt_get_char(&v,&a,qrstr,RSAKEY_SIZE);
+      print_qr_ascii(qrstr);
+    } else {
+     if (hiddenout==1) {
+      if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
+      else fprintf(stdout,"### Payload Start ###\n%c[8m%c[31;41m",27,27,27);
+     }
+     rc=evlt_io(&v,fpo,&a);
+     if (hiddenout==1) {
+      if (passcont) fprintf(stdout,"%c[0m%c[m<<<\n\n",27,27);
+      else fprintf(stdout,"%c[0m%c[m\n### Payload End   ###\n",27,27);
+     }
     }
    break;;
   case 1:

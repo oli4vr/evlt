@@ -74,7 +74,7 @@ FILE* data2stream(unsigned char* data, size_t size) {
   close(pipefd[1]);
   return NULL;
  } else if (written != size) {
-  fprintf(stderr, "Incomplete write to pipe\n");
+  fprintf(stderr, "### ERROR   : Incomplete write to pipe\n");
   close(pipefd[0]);
   close(pipefd[1]);
   return NULL;

@@ -78,7 +78,7 @@ void aes256_bw(crypttale *ct,unsigned char * data,int len) {
 //We explode the keystring into a large key
 //Then we obscure it with sha512
 int buildkey(crypttale *ct,unsigned char * keystring) {
- int se=strnlen(keystring,1024),n=0;
+ int se=strnlen(keystring,1024),n;
  int sp1=0;
  int cval;
  unsigned char explode[KEY_SIZE];
@@ -90,7 +90,7 @@ int buildkey(crypttale *ct,unsigned char * keystring) {
  last=keystring[se-1];
  cval=(last-keystring[0])&255;
 
- for(;n<KEY_SIZE;n++) {
+ for(n=0;n<KEY_SIZE;n++) {
   cur1=keystring[sp1];
   cval=((n>>8)+(n&255)^last^((n&1)?(cval+cur1+1)&255:(cval-cur1-127)))&255;
   *kp=cval;

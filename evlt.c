@@ -30,6 +30,25 @@ void set_master_expire_minutes(int m) {
  master_expire_minutes=m;
 }
 
+size_t ascii_size(const unsigned char *data, size_t len) {
+// returns ascii size if a valid ascii string
+// returns 0 if not
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        if (data[i] == 0) {
+            // Found null terminator, valid ASCII text up to here
+            return i+1;
+        }
+        if (!(data[i] == 0x09 || data[i] == 0x0A || data[i] == 0x0D ||
+              (data[i] >= 0x20 && data[i] <= 0x7E))) {
+            // Not a valid ASCII text character
+            return 0;
+        }
+    }
+    // No null terminator found within length
+    return 0;
+}
+
 // Return timestamp in microseconds
 int64_t getusecs() {
  int64_t tmp;
@@ -1111,4 +1130,21 @@ unsigned char * get_file_extension(const unsigned char *path, unsigned char *ext
     memcpy(ext, dot, ext_len);
     ext[ext_len] = 0;
     return ext;
+}
+
+int evlt_get_char(evlt_vault *v,evlt_act *a,unsigned char *str,size_t size) {
+ int rc;
+ FILE *fpo;
+ pipe_buffer pb;
+ fpo=stream2data(&pb,str,size);
+ usleep(1000);
+ if (fpo==NULL) {
+   return -19;
+ }
+ rc=evlt_io(v,fpo,a);
+ fwrite("\0",1,2,fpo);
+ fflush(fpo);
+ fclose(fpo);
+ usleep(100000);
+ return rc;
 }

@@ -13,7 +13,7 @@ int rename_sftp(char *username, char *hostname, unsigned int tcpport, char *old_
 
 // Struct sftp_thread_data
 typedef struct _sftp_thread_data {
- unsigned char action;
+ unsigned char action; // 0 = get   1 = put
  char *user;
  char *host;
  unsigned int tcpport;
