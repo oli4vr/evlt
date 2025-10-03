@@ -45,6 +45,13 @@ To store a sensitive password in the vault:
 evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -p
 ```
 
+When using a .pwd or .password extension, the -p parameter is automatically assumed.
+
+```bash
+evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password.pwd
+```
+
+
 ### Retrieving a Password
 
 To retrieve the stored password, but output as an invisible string between >>> and <<< characters. (copy/paste)
@@ -52,6 +59,19 @@ To retrieve the stored password, but output as an invisible string between >>> a
 ```bash
 evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password -p
 ```
+
+or
+
+```bash
+evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password.pwd
+```
+
+### Retrieve a Password or String and print it as a QR code
+
+```bash
+evlt get /myvault/category/passwords/my_password.pwd -Q
+```
+
 
 ### Storing a Secret Key
 
@@ -165,10 +185,11 @@ evlt             Entropy Vault
  Options
  -v              Verbose mode
  -S              Secret mode -> Do not index entry -> Invisible to ls command
- -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=8
- -b KBsize       Blocksize in KB Default=64KB Allowed=1 2 4 8 16 32 64
+ -n NR           Use NR number of parallel vault file segments between 1 and 32. Default=1
+ -b KBsize       Blocksize in KB Default=1KB Allowed=1 2 4 8 16 32 64
  -p              Password content -> Put: enter value using a password prompt
                                   -> Get: Invisible copy/paste output
+ -Q              QR mode : Same as -p but output printed as a QR code on the terminal
  -i              Invisible copy/paste output. Good for keys.
  -c              Run content as a script or command
  -d path         Use an alternate dir path for the vault files
