@@ -279,6 +279,12 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
      hiddenout=1;
    } else if (strncmp(tmp,"run",32)==0 || strncmp(tmp,"script",32)==0) {
      runascmd=1;
+   } else if (strncmp(tmp,"qr",32)==0 || strncmp(tmp,"qrcode",32)==0) {
+      passcont=1;
+      qrprint=1;
+      a->segments=1;
+      a->blocksize=1;
+      hiddenout=1;
    }
   }
  }
