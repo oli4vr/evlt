@@ -51,7 +51,6 @@ When using a .pwd or .password extension, the -p parameter is automatically assu
 evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password.pwd
 ```
 
-
 ### Retrieving a Password
 
 To retrieve the stored password, but output as an invisible string between >>> and <<< characters. (copy/paste)
@@ -87,6 +86,15 @@ To retrieve the stored key file and output as invisible copy/paste content on th
 
 ```bash
 evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 -i
+```
+
+### Read from or to the X11 Clipboard with -B
+
+You can store whatever is currently in the clipboard into a vault. Or you can get text data from the vault and put it in the clipboard.
+
+```bash
+evlt put /myvault/mypassword.pwd -B
+evlt get /myvault/mypassword.pwd -B
 ```
 
 ### Storing a Script
@@ -190,6 +198,7 @@ evlt             Entropy Vault
  -p              Password content -> Put: enter value using a password prompt
                                   -> Get: Invisible copy/paste output
  -Q              QR mode : Same as -p but output printed as a QR code on the terminal
+ -B              Copy or Paste content from/to X11 clipboard
  -i              Invisible copy/paste output. Good for keys.
  -c              Run content as a script or command
  -d path         Use an alternate dir path for the vault files

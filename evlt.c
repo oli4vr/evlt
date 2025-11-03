@@ -61,6 +61,7 @@ int64_t getusecs() {
  return tmp;
 }
 
+//Return the size of a file
 long get_file_size(const char *filename) {
  FILE *file = fopen(filename, "rb");
  if (file == NULL) {
@@ -72,6 +73,7 @@ long get_file_size(const char *filename) {
  return size;
 }
 
+//Delete file if older than x minutes
 int delete_if_older(const char *filepath, int minutes) {
     struct stat file_stat;
     time_t current_time;
@@ -732,7 +734,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
   in=fp;out=NULL;
  }
 
- // Remote vault code
+ // Remote sftp vault code
  if (a->sftp_port!=0 && a->sftp_host[0]!=0 && a->sftp_user[0]!=0) {
   subact.action=0;
   strncpy(subact.vname,".secrets",16);
@@ -875,11 +877,16 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  if (a->action==0) {rcw=0;}
  while (rcw>0 || rcr>0) {
   if (rcw>0 && a->action>0 && a->action!=3) {
+   //write iteration
    rcw=evlt_iter_put(v,in,&vc);
   }
-  if (rcr>0) {rcr=evlt_iter_get(v,out,&vc);}
+  if (rcr>0) {
+   //read iteration
+   rcr=evlt_iter_get(v,out,&vc);
+  }
  }
  if (a->restlength>0 && a->action > 0) {
+  //write iteration -> source=memory
   FILE * tfp = data2stream(a->restdata,a->restlength);
   evlt_iter_put(v,tfp,&vc);
  }
@@ -888,6 +895,7 @@ int evlt_io(evlt_vault *v,FILE *fp,evlt_act *a) {
  for(n=0;n<v->segments;n++) {
   if (v->rfp[n]!=NULL) {fclose(v->rfp[n]);}
  }
+ //Encryption cleanup
  exit_encrypt(&vc.ct1);
  exit_encrypt(&vc.ct2);
  exit_encrypt(&vc.ct3);

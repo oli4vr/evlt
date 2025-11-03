@@ -7,6 +7,7 @@
 #include <string.h>
 #include "pipes.h"
 
+//Write to memory background handler thread
 void* writer_thread(void* arg) {
  pipe_buffer *buffer = (pipe_buffer*)arg;
  ssize_t bytes_read;
@@ -21,6 +22,9 @@ void* writer_thread(void* arg) {
  return NULL;
 }
 
+//return a FILE* stream that writes to a memory segment with a max size
+//a pthread handler is setup and detached
+//fwrite to memory
 FILE* stream2data(pipe_buffer *buffer, unsigned char* data, size_t size) {
  int pipefd[2];
 
@@ -29,6 +33,7 @@ FILE* stream2data(pipe_buffer *buffer, unsigned char* data, size_t size) {
  }
 
  if (pipe(pipefd) == -1) {
+  fprintf(stderr, "### ERROR   : Failed to create pipe\n");
   perror("pipe");
   return NULL;
  }
@@ -40,6 +45,7 @@ FILE* stream2data(pipe_buffer *buffer, unsigned char* data, size_t size) {
 
  pthread_t tid;
  if (pthread_create(&tid, NULL, writer_thread, buffer) != 0) {
+  fprintf(stderr, "### ERROR   : Failed to create handler thread\n");
   perror("pthread_create");
   close(pipefd[0]);
   close(pipefd[1]);
@@ -48,6 +54,7 @@ FILE* stream2data(pipe_buffer *buffer, unsigned char* data, size_t size) {
 
  FILE *stream = fdopen(pipefd[1], "w");
  if (!stream) {
+  fprintf(stderr, "### ERROR   : Failed to open stream\n");
   perror("fdopen");
   close(pipefd[0]);
   close(pipefd[1]);
@@ -59,16 +66,19 @@ FILE* stream2data(pipe_buffer *buffer, unsigned char* data, size_t size) {
  return stream;
 }
 
-
+//return a FILE* stream that reads data from a memory segment with a specific size
+//fread from memory
 FILE* data2stream(unsigned char* data, size_t size) {
  int pipefd[2];
  if (pipe(pipefd) == -1) {
+  fprintf(stderr, "### ERROR   : Failed to create pipe\n");
   perror("pipe");
   return NULL;
  }
 
  ssize_t written = write(pipefd[1], data, size);
  if (written == -1) {
+  fprintf(stderr, "### ERROR   : Failed to write to pipe\n");
   perror("write");
   close(pipefd[0]);
   close(pipefd[1]);
@@ -84,6 +94,7 @@ FILE* data2stream(unsigned char* data, size_t size) {
 
  FILE* stream = fdopen(pipefd[0], "r");
  if (stream == NULL) {
+  fprintf(stderr, "### ERROR   : Failed to open stream\n");
   perror("fdopen");
   close(pipefd[0]);
   return NULL;

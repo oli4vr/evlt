@@ -20,6 +20,7 @@
 #include "evlt.h"
 #include "inifind.h"
 #include "qr.h"
+#include "cbcp.h"
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
@@ -27,6 +28,8 @@ unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
 unsigned char passcont=0;
 unsigned char qrprint=0;
+unsigned char clipboard=0;
+unsigned char strforce=0;
 
 int default_segments=1;
 int default_blocksize=1;
@@ -266,6 +269,12 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
         process_rhoststring(argv[0],a);
       }
      break;;
+    case 'B':
+      clipboard=1;
+     break;;
+    case 'F':
+      strforce=1;
+     break;;
    }
   }
   argc--;argv++;
@@ -287,6 +296,12 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       hiddenout=1;
    }
   }
+ }
+ if (clipboard || strforce) {
+  passcont=0;
+  hiddenout=0;
+  qrprint=0;
+  runascmd=0;
  }
 
  return rc;
@@ -314,6 +329,8 @@ int print_help(unsigned char *cmd) {
  fprintf(stderr," -p              Password content -> Put: enter value using a password prompt\n");
  fprintf(stderr,"                                  -> Get: Invisible copy/paste output\n");
  fprintf(stderr," -Q              QR mode : Same as -p but output printed as a QR code on the terminal\n");
+ fprintf(stderr," -B              Copy or Paste content from/to X11 clipboard\n");
+ fprintf(stderr," -F              Force standard handling via stdin/stdout\n");
  fprintf(stderr," -i              Invisible copy/paste output. Good for keys.\n");
  fprintf(stderr," -c              Run content as a script or command\n");
  fprintf(stderr," -d path         Use an alternate dir path for the vault files\n");
@@ -495,11 +512,12 @@ int main(int argc,char ** argv) {
 
  rc=-999;
  switch (a.action) {
-  case 0:
-    if (qrprint) {
-      unsigned char qrstr[RSAKEY_SIZE];
-      rc=evlt_get_char(&v,&a,qrstr,RSAKEY_SIZE);
-      print_qr_ascii(qrstr);
+  case 0: //GET
+    if (qrprint || clipboard) {
+      unsigned char getbuff[RSAKEY_SIZE];
+      rc=evlt_get_char(&v,&a,getbuff,RSAKEY_SIZE);
+      if (qrprint) print_qr_ascii(getbuff);
+      if (clipboard) copy_to_clipboard(getbuff);
     } else {
      if (hiddenout==1) {
       if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
@@ -512,11 +530,30 @@ int main(int argc,char ** argv) {
      }
     }
    break;;
-  case 1:
-  case 3:
-    rc=evlt_io(&v,fpi,&a);
+  case 1: //PUT
+  case 3: //APPEND
+    if (clipboard) { //Data source = X11 Clipboard
+     unsigned char * putbuff=malloc(65536);
+     if (putbuff!=NULL) {
+      int cbrc=paste_from_clipboard(putbuff);
+      putbuff[RSAKEY_SIZE-1]=0;
+      FILE * fpcb=data2stream(putbuff,strnlen(putbuff,RSAKEY_SIZE));
+      usleep(100000);
+      if (fpcb!=NULL) {
+       rc=evlt_io(&v,fpcb,&a);
+      } else {
+       fprintf(stderr,"### ERROR   : Failed to open pipe from memory buffer\n");
+      }
+      fclose(fpcb);
+      free(putbuff);
+     } else {
+      fprintf(stderr,"### ERROR   : Failed to allocate 64KB buffer\n");
+     }
+    } else { //Normal write or append
+     rc=evlt_io(&v,fpi,&a);
+    }
    break;;
-  case 2:
+  case 2: //DELETE
     rc=evlt_io(&v,NULL,&a);
    break;
  }

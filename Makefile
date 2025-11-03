@@ -1,4 +1,8 @@
 # Variables
+LIBX11 := $(shell find /usr/lib -name libX11.a)
+LIBXCP := $(shell find /usr/lib -name libxcb.a)
+LIBXAU := $(shell find /usr/lib -name libXau.a)
+LIBXDMCP := $(shell find /usr/lib -name libXdmcp.a)
 NUM_CPUS := $(shell nproc)
 NUM_CTHR := $(shell echo $$(($(NUM_CPUS) * 4)))
 MAINDIR := $(CURDIR)
@@ -10,7 +14,7 @@ QRENC_REPO := https://github.com/fukuchi/libqrencode.git
 LIBSSH_PKG := https://www.libssh.org/files/0.11/libssh-0.11.3.tar.xz
 CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include -I$(QRENC_DIR)
 LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread
-STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a $(QRENC_DIR)/build/libqrencode.a
+STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a $(QRENC_DIR)/build/libqrencode.a $(LIBX11) $(LIBXCP) $(LIBXAU) $(LIBXDMCP)
 JOBS := -j$(NUM_CTHR)
 
 # Build all
@@ -48,7 +52,8 @@ main:
 	gcc -c sftp.c -o sftp.o $(CFLAGS) 
 	gcc -c inifind.c -o inifind.o $(CFLAGS) 
 	gcc -c qr.c -o qr.o $(CFLAGS) 
-	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o qr.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS)
+	gcc -c cbcp.c -o cbcp.o $(CFLAGS) 
+	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o qr.o cbcp.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS)
 
 # Clean only the main application
 clean:
