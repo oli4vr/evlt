@@ -517,7 +517,13 @@ int main(int argc,char ** argv) {
       unsigned char getbuff[RSAKEY_SIZE];
       rc=evlt_get_char(&v,&a,getbuff,RSAKEY_SIZE);
       if (qrprint) print_qr_ascii(getbuff);
-      if (clipboard) copy_to_clipboard(getbuff);
+      if (clipboard) {
+       if (copy_to_clipboard(getbuff)==0) {
+        fprintf(stderr,"  -> Content copied to X11 Clipboard\n");
+       } else {
+        fprintf(stderr,"  -> Failed to copy to X11 Clipboard\n");
+       }
+      }
     } else {
      if (hiddenout==1) {
       if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
