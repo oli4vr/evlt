@@ -36,10 +36,25 @@ int default_blocksize=1;
 unsigned char default_path[1024]={0};
 unsigned char cfgfile_path[1024]={0};
 
-unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf,size_t size) {
+unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf) {
  strncpy(buf,getpass(prompt),80);
  buf[79]=0;
  return buf;
+}
+
+unsigned char *evlt_getpass2(const unsigned char *prompt,unsigned char *buf) {
+ unsigned char tmp[80]={0};
+ if (prompt==NULL) return NULL;
+ fprintf(stderr,"%s\n",prompt);
+ strncpy(buf,getpass("1st entry :"),80);
+ strncpy(tmp,getpass("2nd entry :"),80);
+ buf[79]=0;
+ tmp[79]=0;
+ if (strncmp(buf,tmp,80)==0) {
+  return buf;
+ }
+ fprintf(stderr,"Entry failed. Please enter the same secret twice.\n");
+ return NULL;
 }
 
 int process_rhoststring(unsigned char *s,evlt_act *a) {
@@ -129,7 +144,7 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   a->action=5;
   manpass=0;
   argc--;argv++;
-  evlt_getpass("Master Key : ",a->passkey,VAULTKEY_SIZE);
+  while (evlt_getpass2("Master Key Entry : ",a->passkey)==NULL);
  }
 
  a->segments=default_segments;
@@ -221,16 +236,19 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       }
       if (manpass) {
        tmp[0]=0;
+       while (evlt_getpass2("Master Key Entry : ",tmp)==NULL);
+       /*
        if (a->action==0) {
-        evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
+        evlt_getpass("Master Key : ",tmp);
        } else {
-        evlt_getpass("Master Key 1st : ",tmp,VAULTKEY_SIZE);
-        evlt_getpass("Master Key 2nd : ",passchk,VAULTKEY_SIZE);
+        evlt_getpass("Master Key 1st : ",tmp);
+        evlt_getpass("Master Key 2nd : ",passchk);
         if (strncmp(tmp,passchk,VAULTKEY_SIZE)!=0) {
          fprintf(stderr,"### ERROR   : Password entries do not match!\n");
          return -4;
         }
        }
+       */
       } else {
        strncpy(tmp,argv[0],VAULTKEY_SIZE);
        tmp[511]=0;
@@ -353,7 +371,7 @@ int main(int argc,char ** argv) {
  unsigned char tmp[1024];
  unsigned char val[64];
  unsigned char pass1[81];
- unsigned char pass2[81];
+// unsigned char pass2[81];
  FILE *fpo=stdout;
  FILE *fpi=stdin;
  size_t sz;
@@ -424,14 +442,17 @@ int main(int argc,char ** argv) {
  }
 
  if (passcont && a.action==1) {
-  evlt_getpass("Password 1st : ",pass1,80);
+  while (evlt_getpass2("Secret String Entry : ",pass1)==NULL);
+  /*
+  evlt_getpass("Password 1st : ",pass1);
   pass1[80]=0;
-  evlt_getpass("Password 2nd : ",pass2,80);
+  evlt_getpass("Password 2nd : ",pass2);
   pass2[80]=0;
   if (strncmp(pass1,pass2,80)!=0) {
    fprintf(stderr,"### ERROR   : Password content does not match\n");
    return -11;
   }
+  */
   fpi=data2stream(pass1,strnlen(pass1,81));
  }
 
@@ -496,7 +517,7 @@ int main(int argc,char ** argv) {
   if (sz==129 && tmp[0]!=0) {
    memcpy(a.passkey,tmp,129);
   } else {
-   evlt_getpass("Master Key : ",tmp,VAULTKEY_SIZE);
+   while (evlt_getpass2("Master Key Entry : ",tmp)==NULL);
    sz=evlt_put_masterkey(v.path,tmp,strnlen(tmp,VAULTKEY_SIZE));
    if (sz>0) {
     sz=evlt_get_masterkey(v.path,tmp);
