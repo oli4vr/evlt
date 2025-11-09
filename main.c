@@ -36,6 +36,18 @@ int default_blocksize=1;
 unsigned char default_path[1024]={0};
 unsigned char cfgfile_path[1024]={0};
 
+unsigned char is_terminal_emulator() {
+ char *tty = ttyname(STDIN_FILENO);
+ if (!tty) return 0; // Not a terminal
+
+ // Terminal emulators usually use /dev/pts/* or /dev/ttyp*
+ if (strstr(tty, "/dev/pts/") == tty || strstr(tty, "/dev/ttyp") == tty)
+  return 1; // Terminal emulator
+
+ // Otherwise, likely a console or serial terminal
+ return 0;
+}
+
 unsigned char *evlt_getpass(const unsigned char *prompt,unsigned char *buf) {
  strncpy(buf,getpass(prompt),80);
  buf[79]=0;
@@ -546,14 +558,25 @@ int main(int argc,char ** argv) {
        }
       }
     } else {
+     unsigned char istermemu=is_terminal_emulator();
      if (hiddenout==1) {
-      if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
-      else fprintf(stdout,"### Payload Start ###\n%c[8m%c[31;41m",27,27,27);
+      if (istermemu) {
+       if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m",27);
+       else fprintf(stdout,"### Payload Start ###\n%c[8m",27);
+      } else {
+       if (passcont) fprintf(stdout,"Copy/Paste between >>>%c[8m%c[31;41m",27,27);
+       else fprintf(stdout,"### Payload Start ###\n%c[8m%c[31;41m",27,27);
+      }
      }
      rc=evlt_io(&v,fpo,&a);
      if (hiddenout==1) {
+      if (istermemu) {
+      if (passcont) fprintf(stdout,"%c[m<<<\n\n",27);
+      else fprintf(stdout,"%c[m\n### Payload End   ###\n",27);
+      } else {
       if (passcont) fprintf(stdout,"%c[0m%c[m<<<\n\n",27,27);
       else fprintf(stdout,"%c[0m%c[m\n### Payload End   ###\n",27,27);
+      }
      }
     }
    break;;
