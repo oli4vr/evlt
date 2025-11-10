@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <openssl/sha.h>
+#include <openssl/hmac.h>
 #include "encrypt.h"
 #include "hexenc.h"
 #include "pipes.h"
@@ -21,6 +22,7 @@
 #include "inifind.h"
 #include "qr.h"
 #include "cbcp.h"
+#include "totp.h"
 
 unsigned char hiddenout=0;
 unsigned char runascmd=0;
@@ -28,6 +30,7 @@ unsigned char *evlt_path=NULL;
 unsigned char *opt_fname=NULL;
 unsigned char passcont=0;
 unsigned char qrprint=0;
+unsigned char totp=0;
 unsigned char clipboard=0;
 unsigned char strforce=0;
 
@@ -324,6 +327,10 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
       a->segments=1;
       a->blocksize=1;
       hiddenout=1;
+   } else if (strncmp(tmp,"totp",32)==0 || strncmp(tmp,"2fa",32)==0 ) {
+      totp=1;
+      a->segments=1;
+      a->blocksize=1;
    }
   }
  }
@@ -546,7 +553,7 @@ int main(int argc,char ** argv) {
  rc=-999;
  switch (a.action) {
   case 0: //GET
-    if (qrprint || clipboard) {
+    if (qrprint || clipboard || totp) {
       unsigned char getbuff[RSAKEY_SIZE];
       rc=evlt_get_char(&v,&a,getbuff,RSAKEY_SIZE);
       if (qrprint) print_qr_ascii(getbuff);
@@ -555,6 +562,14 @@ int main(int argc,char ** argv) {
         fprintf(stderr,"  -> Content copied to X11 Clipboard\n");
        } else {
         fprintf(stderr,"  -> Failed to copy to X11 Clipboard\n");
+       }
+      }
+      if (totp) {
+       int totp_result=totp_calc(getbuff);
+       if (totp_result>=0) {
+        fprintf(stdout,"TOTP authentication code : %06d\n",totp_result);
+       } else {
+        fprintf(stderr,"### ERROR   : TOTP calculation failed\n");
        }
       }
     } else {

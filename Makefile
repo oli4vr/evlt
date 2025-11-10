@@ -13,7 +13,7 @@ OPENSSL_REPO := https://github.com/openssl/openssl.git
 QRENC_REPO := https://github.com/fukuchi/libqrencode.git
 LIBSSH_PKG := https://www.libssh.org/files/0.11/libssh-0.11.3.tar.xz
 CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include -I$(QRENC_DIR)
-LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread
+LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread 
 STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a $(QRENC_DIR)/build/libqrencode.a $(LIBX11) $(LIBXCP) $(LIBXAU) $(LIBXDMCP)
 JOBS := -j$(NUM_CTHR)
 
@@ -53,7 +53,8 @@ main:
 	gcc -c inifind.c -o inifind.o $(CFLAGS) 
 	gcc -c qr.c -o qr.o $(CFLAGS) 
 	gcc -c cbcp.c -o cbcp.o $(CFLAGS) 
-	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o qr.o cbcp.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS)
+	gcc -c totp.c -o totp.o $(CFLAGS) 
+	gcc main.c -o evlt encrypt.o hexenc.o pipes.o sftp.o evlt.o inifind.o qr.o cbcp.o totp.o $(STATIC_LIBS) $(CFLAGS) $(LDFLAGS)
 
 # Clean only the main application
 clean:
