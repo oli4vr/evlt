@@ -569,7 +569,7 @@ int main(int argc,char ** argv) {
        if (totp_result>=0) {
         fprintf(stdout,"TOTP authentication code : %06d\n",totp_result);
        } else {
-        fprintf(stderr,"### ERROR   : TOTP calculation failed\n");
+        fprintf(stderr,"### ERROR   : TOTP calculation failed. Possibly the stored string is not a proper base32 secret\n");
        }
       }
     } else {
