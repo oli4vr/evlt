@@ -1,2 +1,3 @@
-//int calculate_totp(const unsigned char *secret_base32, int *current_key);
+/* totp.h
+ */
 int totp_calc(const char *base32_secret);
