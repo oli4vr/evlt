@@ -6,7 +6,7 @@ This tool is primarily intended for system administrators who require secure dat
 
 This application is currently still in an experimental state. Consider it as such. Do not use it to store production-critical data.
 
-## Features
+# Features
 
 - Secure data storage using cryptographic keys.
 - Multiple independent data blobs in the same vault.
@@ -16,9 +16,9 @@ This application is currently still in an experimental state. Consider it as suc
 - A default master key can be provided and locally cached in an obscured manner.
 - A custom master key can be used for extra secret data.
 
-## Use Cases
+# Use Cases
 
-### Storing a Binary File
+## Storing a Binary File
 
 The basic syntax to store a file:
 ```bash
@@ -37,7 +37,7 @@ You can also use more '/' subcategories (or subdirs if you want to call it that)
 
 Technically you could consider it as a sort-of directory structure, but you have no way to list its content without knowing the full "path".
 
-### Storing a Password
+## Storing a Password
 
 To store a sensitive password in the vault:
 
@@ -51,7 +51,7 @@ When using a .pwd or .password extension, the -p parameter is automatically assu
 evlt put /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password.pwd
 ```
 
-### Retrieving a Password
+## Retrieving a Password
 
 To retrieve the stored password, but output as an invisible string between >>> and <<< characters. (copy/paste)
 
@@ -65,14 +65,40 @@ or
 evlt get /myvault/apl5a7qs89viok9lqsl23mdkzec/passwords/my_password.pwd
 ```
 
-### Retrieve a Password or String and print it as a QR code
+## Retrieve a Password or String and print it as a QR code
 
 ```bash
 evlt get /myvault/category/passwords/my_password.pwd -Q
 ```
 
+You can also use the .qr extension to signify the content has be printed as qr code by default
 
-### Storing a Secret Key
+## Use time-based one time passwords (TOTP)
+
+You can store otpauth://totp/ URI strings and have a get calculate the one-time authentication password.
+Simply use the .totp extension to signify it is a time-based one time passwords.
+
+```bash
+echo 'otpauth://totp/MyApplication?secret=JBSWY3DPEERAQHQOBORX&issuer=CompanyXYZ&algorithm=SHA1&digits=6&period=30' | evlt put /secret/totp/test.totp -S
+```
+
+```bash
+evlt get /secret/totp/test.totp
+TOTP authentication code : 564246
+```
+
+Use the -Q option if you want to print the URI as a qr code to scan it with your phone
+```bash
+evlt get /secret/totp/test.totp -Q
+```
+
+Use the -F flag to retrieve the original URI string
+```bash
+evlt get /secret/totp/test.totp -F
+```
+
+
+## Storing a Secret Key
 
 To store the content of a file, such as an SSH private key:
 
@@ -80,7 +106,7 @@ To store the content of a file, such as an SSH private key:
 evlt put /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 < id_rsa
 ```
 
-### Retrieving a Secret Key
+## Retrieving a Secret Key
 
 To retrieve the stored key file and output as invisible copy/paste content on the terminal:
 
@@ -88,7 +114,7 @@ To retrieve the stored key file and output as invisible copy/paste content on th
 evlt get /myvault/oiq4fho9qis7hf/rsakeys/id_rsa -n 8 -i
 ```
 
-### Read from or to the X11 Clipboard with -B
+## Read from or to the X11 Clipboard with -B
 
 You can store whatever is currently in the clipboard into a vault. Or you can get text data from the vault and put it in the clipboard.
 
@@ -97,7 +123,7 @@ evlt put /myvault/mypassword.pwd -B
 evlt get /myvault/mypassword.pwd -B
 ```
 
-### Storing a Script
+## Storing a Script
 
 To store a script in the vault:
 
@@ -105,7 +131,7 @@ To store a script in the vault:
 evlt put /myvault/sysadmin/scripts/my_script.sh -f my_script.sh
 ```
 
-### Retrieve and Execute a Script
+## Retrieve and Execute a Script
 
 To recover and execute the script:
 
@@ -115,7 +141,7 @@ evlt run /myvault/sysadmin/scripts/my_script.sh
 
 The -c option executes the content of the script or binary executable data.
 
-### Delete a Data Blob from a Vault
+## Delete a Data Blob from a Vault
 
 Use the "del" action to remove a data blob and free its space in the vault.
 
@@ -127,7 +153,7 @@ evlt del /password/mypassword -p
 
 Technically using /dev/null or an empty file as input technically has the same effect.
 
-### Setting the default master key
+## Setting the default master key
 The default master key can be set with the following command :
 ```bash
 evlt master
@@ -136,7 +162,7 @@ This master key is stored in an encrypted form and expires after a certain amoun
 When you do not provide a master key with a put or get request it will use this stored master key if it is available and not expired.
 You can configure the expiration of the default master key by adjusting the config file parameter MasterExpire (minutes)
 
-### Using Remote Vaults (via SFTP)
+## Using Remote Vaults (via SFTP)
 Add an RSA private key for a remote connection.
 ```bash
 ssh-keygen -b 2048 -f mykey
@@ -161,7 +187,7 @@ If you do this, make sure your private key is also stored in /.secrets/.remoteho
 
 You can use remote vaults with any of the above use cases and options.
 
-## Installation
+# Installation
 
 To install evlt, clone the repository and compile the source code:
 
@@ -212,7 +238,7 @@ evlt             Entropy Vault
 
 </pre>
 
-### Config file
+## Config file
 A config file is looked for in the local path ./.evlt.cfg, in /etc/evlt.cfg or in ~/.evlt/.evlt.cfg
 Example config file content :
 <pre>
@@ -227,13 +253,13 @@ DefaultPath can be practical when you want to store the vault files in a subdir 
 MasterExpire configures the default master key expiration in minutes.
 RemoteHost sets a default remote host (sftp) where the vault files are located.
 
-### Vault path extensions
+## Vault path extensions
 You can use certain extensions in the vault path to signify specific types of data like you would with files in a filesystem.
 <pre>
  .password or .pwd      -> Does the same as the -p parameter (treat it as a password)
 </pre>
 
-### How it works
+## How it works
 Data is written and processed one block at a time. Each block is divided into a specified number of subblocks (`-n`), which are then encrypted. Every subblock is stored in a segment file, accompanied by a SHA512 hash to ensure integrity. Each subblock undergoes encryption three times using distinct keys for enhanced security. When an EOF is hit on the input file stream, a "stop" flag is set on the last blocks of each segment.
 
 All vault data resides within the `~/.evlt` directory. The names of the vault segment files are derived from hashed strings, which serves to obscure their contents and purpose.

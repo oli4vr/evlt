@@ -12,9 +12,9 @@ QRENC_DIR := $(MAINDIR)/qrenc
 OPENSSL_REPO := https://github.com/openssl/openssl.git
 QRENC_REPO := https://github.com/fukuchi/libqrencode.git
 LIBSSH_PKG := https://www.libssh.org/files/0.11/libssh-0.11.3.tar.xz
-CFLAGS := -O3 -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include -I$(QRENC_DIR)
-LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread 
-STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a $(QRENC_DIR)/build/libqrencode.a $(LIBX11) $(LIBXCP) $(LIBXAU) $(LIBXDMCP)
+CFLAGS := -O3 -static-libgcc -I$(LIBSSH_DIR)/build/include -I$(LIBSSH_DIR)/include -I$(INSTALL_DIR)/include -I$(MAINDIR)/openssl/include -I$(QRENC_DIR)
+LDFLAGS := -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib64 -lpthread -lm 
+STATIC_LIBS := $(INSTALL_DIR)/lib/libssh.a $(INSTALL_DIR)/lib64/libssl.a $(INSTALL_DIR)/lib64/libcrypto.a $(QRENC_DIR)/build/libqrencode.a $(LIBX11) $(LIBXCP) $(LIBXAU) $(LIBXDMCP) 
 JOBS := -j$(NUM_CTHR)
 
 # Build all

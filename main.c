@@ -339,7 +339,9 @@ int proc_opt(evlt_act *a,int argc,char ** argv) {
   hiddenout=0;
   qrprint=0;
   runascmd=0;
+  totp=0;
  }
+ if (qrprint) totp=0;
 
  return rc;
 }
